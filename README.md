@@ -111,6 +111,6 @@ npm run dev
 
 ## Лицензия контента
 
-Классы, расы, школы и заклинания опираются на **SRD 5.1** (Wizards of the Coast LLC), лицензия [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). Обязательная атрибуция — в футере игры и в [`CONTENT_LICENSE.md`](CONTENT_LICENSE.md).
+Классы, расы, школы и заклинания опираются на **SRD 5.1** (Wizards of the Coast LLC), лицензия [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). Обязательная атрибуция — в футере игры.
 
 Лор Порчи Пира, края пути, симуляция вылазки и UI — оригинальный контент **dndrun**.
