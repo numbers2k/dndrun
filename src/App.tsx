@@ -8,6 +8,7 @@ import { HOWTO_STORAGE_KEY } from './data/site'
 import { getActiveSave, type CareerSave } from './game/career'
 import { createMenuState, refreshCareer, startRunFromSave } from './game/draft'
 import { createSeed } from './game/rng'
+import { clearRunState, saveRunState } from './game/runSave'
 import type { RunState } from './game/types'
 import './App.css'
 
@@ -39,6 +40,12 @@ function App() {
     }
   }, [state.screen])
 
+  useEffect(() => {
+    if (state.screen === 'draft' || state.screen === 'campaign') {
+      saveRunState(state)
+    }
+  }, [state])
+
   const closeHowto = useCallback(() => {
     try {
       localStorage.setItem(HOWTO_STORAGE_KEY, '1')
@@ -50,21 +57,36 @@ function App() {
 
   const onStartSave = useCallback((save: CareerSave) => {
     refreshCareer()
+    clearRunState(save.id)
     setState((s) => startRunFromSave(s, save, createSeed()))
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [])
 
-  const onMenu = useCallback(() => {
+  const onContinueSave = useCallback((run: RunState) => {
     refreshCareer()
-    setState(() => createMenuState())
+    setState(run)
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [])
+
+  const onAbandonRun = useCallback((saveId: string) => {
+    clearRunState(saveId)
+  }, [])
+
+  const onMenu = useCallback(() => {
+    refreshCareer()
+    if (state.activeSaveId) {
+      saveRunState(state)
+    }
+    setState(() => createMenuState())
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [state])
 
   const onAgain = useCallback(() => {
     refreshCareer()
     setState((s) => {
       const save = getActiveSave()
       if (!save) return createMenuState()
+      clearRunState(save.id)
       return startRunFromSave(s, save, createSeed())
     })
     window.scrollTo({ top: 0, behavior: 'auto' })
@@ -76,6 +98,8 @@ function App() {
       <div className="app-shell menu-shell">
         <Menu
           onStartSave={onStartSave}
+          onContinueSave={onContinueSave}
+          onAbandonRun={onAbandonRun}
           onSlotsChanged={() => setSlotsTick((n) => n + 1)}
         />
       </div>
@@ -97,6 +121,8 @@ function App() {
       <div className="app-shell menu-shell">
         <Menu
           onStartSave={onStartSave}
+          onContinueSave={onContinueSave}
+          onAbandonRun={onAbandonRun}
           onSlotsChanged={() => setSlotsTick((n) => n + 1)}
         />
       </div>

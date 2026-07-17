@@ -50,6 +50,7 @@ export function DraftAdventurerModal({
               Удар {adventurer.impact} · Ресурс {adventurer.economy} · Надёжность{' '}
               {adventurer.reliability} · Личный рейтинг {adventurer.ovr}
             </p>
+            {adventurer.quirk && <p className="modal-quirk">{adventurer.quirk}</p>}
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Закрыть">
             ×
@@ -70,9 +71,9 @@ export function DraftAdventurerModal({
         )}
 
         <section>
-          <h3>Лучшие из открытых заклинаний</h3>
+          <h3>Из знакомых заклинаний</h3>
           {best.length === 0 ? (
-            <p className="none-yet">— пока нечего показать —</p>
+            <p className="none-yet">— пока мало знакомых спеллов —</p>
           ) : (
             <ul className="modal-class-list">
               {best.map((row) => (

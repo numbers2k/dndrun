@@ -78,13 +78,21 @@ function careerUnlockedSpells(career: CareerState): SpellDef[] {
     : SPELLS.filter((s) => s.level <= career.maxSpellTier)
 }
 
-/** Топ спеллов из открытых в карьере для героя. */
+/** Топ спеллов из уже встреченных (и доступных) в карьере. */
 export function getBestCareerSpells(
   adventurer: AdventurerDef,
   career: CareerState,
   limit = 5,
 ): SpellRankRow[] {
-  return getBestSpellsFromPool(adventurer, careerUnlockedSpells(career), limit)
+  const seen = new Set(career.seenSpellIds ?? [])
+  const pool = careerUnlockedSpells(career).filter((s) => seen.has(s.id))
+  return getBestSpellsFromPool(adventurer, pool, limit)
+}
+
+/** Пул для подсказок: только встреченные спеллы. */
+export function careerSeenSpells(career: CareerState): SpellDef[] {
+  const seen = new Set(career.seenSpellIds ?? [])
+  return SPELLS.filter((s) => seen.has(s.id))
 }
 
 export interface ClassRankRow {

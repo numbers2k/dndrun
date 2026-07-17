@@ -17,11 +17,11 @@ export function SiteFooter() {
         .
       </p>
       <p className="site-footer-sources">
-        Имена авантюристов, гильдейские наборы и симуляция Великого Похода — оригинальный контент{' '}
+        Имена авантюристов, гильдейские наборы и симуляция вылазки против Порчи — оригинальный контент{' '}
         <span className="brand-mark">dndrun</span>.
       </p>
       <p className="site-footer-donate">
-        Нравится забег?{' '}
+        Нравится вылазка?{' '}
         <a href={DONATE_URL} target="_blank" rel="noreferrer">
           Поддержать dndrun
         </a>

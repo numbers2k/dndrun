@@ -1,6 +1,7 @@
 import { CLASS_LABEL, spellLevelHint, spellLevelLabel } from '../data/labels'
 import { tagTitle } from '../data/tags'
 import type { CareerState } from '../game/career'
+import { spellRarityLabel } from '../game/rarity'
 import { classRelationLabel, getBestClassesForSpell } from '../game/scoring'
 import type { SpellDef } from '../game/types'
 import { ROLE_LABEL_FULL } from '../game/types'
@@ -13,7 +14,11 @@ interface DraftSpellModalProps {
 }
 
 export function DraftSpellModal({ spell, career, onConfirm, onClose }: DraftSpellModalProps) {
-  const topClasses = getBestClassesForSpell(spell, career.unlockedClasses, 5)
+  const topClasses = getBestClassesForSpell(
+    spell,
+    career.unlockedClasses.filter((id) => career.seenClasses.includes(id)),
+    5,
+  )
   const roleLine =
     spell.roles && spell.roles.length > 0
       ? spell.roles.map((r) => ROLE_LABEL_FULL[r]).join(', ')
@@ -32,6 +37,10 @@ export function DraftSpellModal({ spell, career, onConfirm, onClose }: DraftSpel
           <div>
             <h2>{spell.name}</h2>
             <p title={spellLevelHint(spell.level)}>
+              <span className={`rarity-tag rarity-${spell.rarity}`}>
+                {spellRarityLabel(spell.rarity)}
+              </span>
+              {' · '}
               {spellLevelLabel(spell.level)} · {spell.school}
             </p>
             {roleLine && <p className="modal-fit">Хорошо для ролей: {roleLine}</p>}

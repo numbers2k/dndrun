@@ -156,7 +156,7 @@ export function TeamRadar({
 
             {spell && (
               <div
-                className={`radar-spell-card ${spellOrphan || !adventurer ? 'orphan' : ''} ${spellDrag && adventurer ? 'draggable' : ''}`}
+                className={`radar-spell-card rarity-${spell.rarity} ${spellOrphan || !adventurer ? 'orphan' : ''} ${spellDrag && adventurer ? 'draggable' : ''}`}
                 style={{ left: `${spellPos.x}%`, top: `${spellPos.y}%` }}
                 title={spell.name}
                 draggable={Boolean(spellDrag && adventurer)}

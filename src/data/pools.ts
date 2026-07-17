@@ -31,6 +31,9 @@ export const FIRST_NAMES = [
   'Кира', 'Лира', 'Мара', 'Мира', 'Ним', 'Оррик', 'Пип', 'Ривен', 'Рук', 'Сайра',
   'Сара', 'Сильва', 'Том', 'Торг', 'Ульф', 'Векс', 'Войда', 'Эзра', 'Элиан', 'Ашлин',
   'Брикк', 'Дракс', 'Йорн', 'Келл', 'Люсьен', 'Найра', 'Оуэн', 'Рея', 'Сторм', 'Талия',
+  'Айра', 'Боран', 'Вира', 'Грим', 'Делль', 'Жанна', 'Икор', 'Крофт', 'Линн', 'Мора',
+  'Нелл', 'Озра', 'Пакс', 'Квин', 'Роан', 'Селла', 'Торн', 'Ума', 'Фэйл', 'Хель',
+  'Цинн', 'Шейд', 'Юна', 'Яра', 'Аскольд', 'Берилл', 'Варг', 'Дара', 'Энар', 'Зефир',
 ]
 
 export const ALL_RACES: RaceId[] = [
@@ -99,33 +102,35 @@ export interface SubclassDef {
   roleBonus: Partial<Record<RoleId, number>>
   /** Bonus to spell schools */
   schoolBonus: Record<string, number>
+  /** srd = из SRD 5.1; original = feast-имя dndrun (не PHB вне SRD). */
+  source: 'srd' | 'original'
 }
 
 export const SUBCLASSES: SubclassDef[] = [
-  { id: 'champion', name: 'Чемпион', classId: 'fighter', roleBonus: { tank: 1, striker: 1 }, schoolBonus: {} },
-  { id: 'eldritchKnight', name: 'Мистический рыцарь', classId: 'fighter', roleBonus: { controller: 1 }, schoolBonus: { Воплощение: 1 } },
-  { id: 'evoker', name: 'Вызыватель', classId: 'wizard', roleBonus: { striker: 1 }, schoolBonus: { Воплощение: 2 } },
-  { id: 'abjurer', name: 'Оградитель', classId: 'wizard', roleBonus: { support: 1 }, schoolBonus: { Ограждение: 2 } },
-  { id: 'lifeDomain', name: 'Жизнь', classId: 'cleric', roleBonus: { support: 2 }, schoolBonus: { Воплощение: 1 } },
-  { id: 'warDomain', name: 'Война', classId: 'cleric', roleBonus: { tank: 1, striker: 1 }, schoolBonus: {} },
-  { id: 'thief', name: 'Вор', classId: 'rogue', roleBonus: { scout: 2 }, schoolBonus: {} },
-  { id: 'assassin', name: 'Убийца', classId: 'rogue', roleBonus: { striker: 2 }, schoolBonus: {} },
-  { id: 'hunter', name: 'Охотник', classId: 'ranger', roleBonus: { striker: 1, scout: 1 }, schoolBonus: { Прорицание: 1 } },
-  { id: 'beastMaster', name: 'Повелитель зверей', classId: 'ranger', roleBonus: { support: 1 }, schoolBonus: { Вызов: 1 } },
-  { id: 'oathDevotion', name: 'Преданность', classId: 'paladin', roleBonus: { support: 1, tank: 1 }, schoolBonus: { Очарование: 1 } },
-  { id: 'oathVengeance', name: 'Месть', classId: 'paladin', roleBonus: { striker: 2 }, schoolBonus: {} },
-  { id: 'berserker', name: 'Берсерк', classId: 'barbarian', roleBonus: { striker: 2 }, schoolBonus: {} },
-  { id: 'totem', name: 'Тотем', classId: 'barbarian', roleBonus: { tank: 2 }, schoolBonus: {} },
-  { id: 'loreCollege', name: 'Знание', classId: 'bard', roleBonus: { controller: 1 }, schoolBonus: { Очарование: 1 } },
-  { id: 'valorCollege', name: 'Доблесть', classId: 'bard', roleBonus: { tank: 1, support: 1 }, schoolBonus: {} },
-  { id: 'fiendPatron', name: 'Исчадие', classId: 'warlock', roleBonus: { striker: 1 }, schoolBonus: { Воплощение: 1 } },
-  { id: 'archfey', name: 'Архифея', classId: 'warlock', roleBonus: { controller: 1 }, schoolBonus: { Очарование: 1 } },
-  { id: 'landCircle', name: 'Земля', classId: 'druid', roleBonus: { controller: 1 }, schoolBonus: { Вызов: 1 } },
-  { id: 'moonCircle', name: 'Луна', classId: 'druid', roleBonus: { tank: 1, striker: 1 }, schoolBonus: {} },
-  { id: 'openHand', name: 'Открытая ладонь', classId: 'monk', roleBonus: { striker: 1 }, schoolBonus: {} },
-  { id: 'shadow', name: 'Тень', classId: 'monk', roleBonus: { scout: 2 }, schoolBonus: { Иллюзия: 1 } },
-  { id: 'draconic', name: 'Драконья кровь', classId: 'sorcerer', roleBonus: { striker: 1 }, schoolBonus: { Воплощение: 1 } },
-  { id: 'wildMagic', name: 'Дикая магия', classId: 'sorcerer', roleBonus: { controller: 1 }, schoolBonus: {} },
+  { id: 'champion', name: 'Чемпион', classId: 'fighter', roleBonus: { tank: 1, striker: 1 }, schoolBonus: {}, source: 'srd' },
+  { id: 'eldritchKnight', name: 'Клинок пустого тоста', classId: 'fighter', roleBonus: { controller: 1 }, schoolBonus: { Воплощение: 1 }, source: 'original' },
+  { id: 'evoker', name: 'Вызыватель', classId: 'wizard', roleBonus: { striker: 1 }, schoolBonus: { Воплощение: 2 }, source: 'srd' },
+  { id: 'abjurer', name: 'Страж скатерти', classId: 'wizard', roleBonus: { support: 1 }, schoolBonus: { Ограждение: 2 }, source: 'original' },
+  { id: 'lifeDomain', name: 'Жизнь', classId: 'cleric', roleBonus: { support: 2 }, schoolBonus: { Воплощение: 1 }, source: 'srd' },
+  { id: 'warDomain', name: 'Кубок стали', classId: 'cleric', roleBonus: { tank: 1, striker: 1 }, schoolBonus: {}, source: 'original' },
+  { id: 'thief', name: 'Вор', classId: 'rogue', roleBonus: { scout: 2 }, schoolBonus: {}, source: 'srd' },
+  { id: 'assassin', name: 'Резец пира', classId: 'rogue', roleBonus: { striker: 2 }, schoolBonus: {}, source: 'original' },
+  { id: 'hunter', name: 'Охотник', classId: 'ranger', roleBonus: { striker: 1, scout: 1 }, schoolBonus: { Прорицание: 1 }, source: 'srd' },
+  { id: 'beastMaster', name: 'Спутник тумана', classId: 'ranger', roleBonus: { support: 1 }, schoolBonus: { Вызов: 1 }, source: 'original' },
+  { id: 'oathDevotion', name: 'Преданность', classId: 'paladin', roleBonus: { support: 1, tank: 1 }, schoolBonus: { Очарование: 1 }, source: 'srd' },
+  { id: 'oathVengeance', name: 'Клятва пепла', classId: 'paladin', roleBonus: { striker: 2 }, schoolBonus: {}, source: 'original' },
+  { id: 'berserker', name: 'Берсерк', classId: 'barbarian', roleBonus: { striker: 2 }, schoolBonus: {}, source: 'srd' },
+  { id: 'totem', name: 'Костяной круг', classId: 'barbarian', roleBonus: { tank: 2 }, schoolBonus: {}, source: 'original' },
+  { id: 'loreCollege', name: 'Знание', classId: 'bard', roleBonus: { controller: 1 }, schoolBonus: { Очарование: 1 }, source: 'srd' },
+  { id: 'valorCollege', name: 'Хор кубков', classId: 'bard', roleBonus: { tank: 1, support: 1 }, schoolBonus: {}, source: 'original' },
+  { id: 'fiendPatron', name: 'Исчадие', classId: 'warlock', roleBonus: { striker: 1 }, schoolBonus: { Воплощение: 1 }, source: 'srd' },
+  { id: 'archfey', name: 'Патрон масок', classId: 'warlock', roleBonus: { controller: 1 }, schoolBonus: { Очарование: 1 }, source: 'original' },
+  { id: 'landCircle', name: 'Земля', classId: 'druid', roleBonus: { controller: 1 }, schoolBonus: { Вызов: 1 }, source: 'srd' },
+  { id: 'moonCircle', name: 'Круг соли', classId: 'druid', roleBonus: { tank: 1, striker: 1 }, schoolBonus: {}, source: 'original' },
+  { id: 'openHand', name: 'Открытая ладонь', classId: 'monk', roleBonus: { striker: 1 }, schoolBonus: {}, source: 'srd' },
+  { id: 'shadow', name: 'Шаг в тумане', classId: 'monk', roleBonus: { scout: 2 }, schoolBonus: { Иллюзия: 1 }, source: 'original' },
+  { id: 'draconic', name: 'Драконья кровь', classId: 'sorcerer', roleBonus: { striker: 1 }, schoolBonus: { Воплощение: 1 }, source: 'srd' },
+  { id: 'wildMagic', name: 'Дикий тост', classId: 'sorcerer', roleBonus: { controller: 1 }, schoolBonus: {}, source: 'original' },
 ]
 
 export const SUBCLASS_MAP = Object.fromEntries(SUBCLASSES.map((s) => [s.id, s])) as Record<

@@ -27,8 +27,8 @@ export function CreateSaveModal({ slot, onCancel, onConfirm }: CreateSaveModalPr
       >
         <header className="modal-head">
           <div>
-            <h2 id="create-save-title">Новая кампания</h2>
-            <p>Слот {slot + 1}. Сложность потом изменить нельзя.</p>
+            <h2 id="create-save-title">Новая вылазка</h2>
+            <p>Слот {slot + 1}. Гильдия запомнит сложность навсегда.</p>
           </div>
           <button type="button" className="modal-close" onClick={onCancel} aria-label="Закрыть">
             ×
@@ -40,7 +40,7 @@ export function CreateSaveModal({ slot, onCancel, onConfirm }: CreateSaveModalPr
           <input
             value={name}
             maxLength={32}
-            placeholder="Например, Пепельные Псы"
+            placeholder="Например, Пустые Кубки"
             onChange={(e) => setName(e.target.value)}
             autoFocus
           />
@@ -73,7 +73,7 @@ export function CreateSaveModal({ slot, onCancel, onConfirm }: CreateSaveModalPr
             disabled={!valid}
             onClick={() => onConfirm(name.trim(), difficulty)}
           >
-            Создать и в путь
+            Создать и набрать отряд
           </button>
         </footer>
       </div>

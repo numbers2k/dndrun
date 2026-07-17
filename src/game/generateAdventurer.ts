@@ -1,4 +1,12 @@
 import {
+  HERO_RARITY_BANDS,
+  TAG_FRONT,
+  TAG_GLASS,
+  TAG_PRESSURE,
+  TAG_RITUAL,
+  TAG_SCOUT_ECO,
+} from './balance'
+import {
   ALL_ROLES,
   CLASS_ROLE_AFFINITY,
   FIRST_NAMES,
@@ -7,9 +15,18 @@ import {
   SUBCLASS_MAP,
   type SubclassId,
 } from '../data/pools'
+import {
+  MECH_QUIRKS,
+  QUIRKS_BY_ROLE,
+  QUIRKS_BY_TAG,
+  QUIRKS_GENERIC,
+} from '../data/quirks'
+import { rarityLabel, rollHeroRarity } from './rarity'
 import type { AdventurerDef, CardRarity, ClassId, RaceId, RoleId } from './types'
 import type { CareerState } from './career'
 import type { SeededRng } from './rng'
+
+export { rarityLabel }
 
 export function computeRoleFit(
   classId: ClassId,
@@ -25,18 +42,18 @@ export function computeRoleFit(
   return Math.max(-4, Math.min(4, fit))
 }
 
-function rollStat(rng: SeededRng, bias = 0): number {
-  // Bell-ish: average of two rolls in 50–95
-  const a = rng.int(50, 95)
-  const b = rng.int(50, 95)
-  return Math.max(45, Math.min(98, Math.round((a + b) / 2 + bias)))
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n))
 }
 
-function rarityFromStats(impact: number, economy: number, reliability: number): CardRarity {
-  const avg = (impact + economy + reliability) / 3
-  if (avg >= 88) return 'legendary'
-  if (avg >= 78) return 'rare'
-  return 'common'
+/** Ось в полосе редкости + лёгкий bias роли. */
+function rollAxis(rng: SeededRng, rarity: CardRarity, bias: number): number {
+  const band = HERO_RARITY_BANDS[rarity]
+  const span = band.axisMax - band.axisMin
+  const a = rng.int(0, span)
+  const b = rng.int(0, span)
+  const raw = band.axisMin + Math.round((a + b) / 2 + bias)
+  return clamp(raw, band.axisMin, band.axisMax)
 }
 
 function buildTags(
@@ -47,18 +64,17 @@ function buildTags(
   roleFit: number,
 ): string[] {
   const tags: string[] = []
-  if (reliability >= 85) tags.push('фронт')
-  if (reliability <= 60) tags.push('стекло')
-  if (economy >= 85) tags.push('ритуал')
-  if (impact >= 88) tags.push('давление')
+  if (reliability >= TAG_FRONT) tags.push('фронт')
+  if (reliability <= TAG_GLASS) tags.push('стекло')
+  if (economy >= TAG_RITUAL) tags.push('ритуал')
+  if (impact >= TAG_PRESSURE) tags.push('давление')
   if (roleFit >= 2) tags.push('посадка+')
   if (roleFit <= -2) tags.push('офф-мета')
-  if (role === 'scout' && economy >= 75) tags.push('след')
+  if (role === 'scout' && economy >= TAG_SCOUT_ECO) tags.push('след')
   return tags.slice(0, 2)
 }
 
 function pickRole(rng: SeededRng, classId: ClassId): RoleId {
-  // Soft bias toward good fits, but allow anything
   const weights = ALL_ROLES.map((role) => {
     const aff = CLASS_ROLE_AFFINITY[classId][role]
     return Math.max(1, 4 + aff)
@@ -80,6 +96,15 @@ function uniqueName(rng: SeededRng, exclude: Set<string>): string {
   return `${rng.pick(FIRST_NAMES)}${rng.int(2, 99)}`
 }
 
+function pickQuirk(rng: SeededRng, role: RoleId, tags: string[]): string {
+  // ~12% — механическая причуда (влияет на score)
+  if (rng.next() < 0.12) return rng.pick(MECH_QUIRKS).text
+  const fromTags = tags.flatMap((t) => QUIRKS_BY_TAG[t] ?? [])
+  if (fromTags.length > 0 && rng.next() < 0.65) return rng.pick(fromTags)
+  if (rng.next() < 0.7) return rng.pick(QUIRKS_BY_ROLE[role])
+  return rng.pick(QUIRKS_GENERIC)
+}
+
 export function generateAdventurer(
   rng: SeededRng,
   career: CareerState,
@@ -97,18 +122,32 @@ export function generateAdventurer(
     subclassPool.length > 0 && rng.next() < 0.45 ? rng.pick(subclassPool).id : undefined
 
   const roleFit = computeRoleFit(classId, role, race, subclassId)
+  const rarity = rollHeroRarity(rng)
+  const band = HERO_RARITY_BANDS[rarity]
   const weights = ROLE_STAT_WEIGHTS[role]
-  const impact = rollStat(rng, Math.round((weights.impact - 0.33) * 12))
-  const economy = rollStat(rng, Math.round((weights.economy - 0.33) * 12))
-  const reliability = rollStat(rng, Math.round((weights.reliability - 0.33) * 12))
 
-  const ovr = Math.round(
-    impact * 0.4 + economy * 0.3 + reliability * 0.3 + roleFit * 1.2 + rng.int(-2, 2),
-  )
-  const clampedOvr = Math.max(52, Math.min(94, ovr))
-  const rarity = rarityFromStats(impact, economy, reliability)
+  let impact = rollAxis(rng, rarity, Math.round((weights.impact - 0.33) * 10))
+  let economy = rollAxis(rng, rarity, Math.round((weights.economy - 0.33) * 10))
+  let reliability = rollAxis(rng, rarity, Math.round((weights.reliability - 0.33) * 10))
+
+  // Подтянуть к цели в полосе: часто верхняя треть — чтобы common перекрывал rare.
+  const mean = (impact + economy + reliability) / 3
+  const span = band.ovrMax - band.ovrMin
+  const target =
+    rng.next() < 0.42
+      ? band.ovrMin + span * (0.55 + rng.next() * 0.45)
+      : band.ovrMin + span * (0.2 + rng.next() * 0.45)
+  const shift = Math.round((target - mean) * 0.55)
+  impact = clamp(impact + shift, band.axisMin, band.axisMax)
+  economy = clamp(economy + shift, band.axisMin, band.axisMax)
+  reliability = clamp(reliability + shift, band.axisMin, band.axisMax)
+
+  const rawOvr = Math.round(impact * 0.4 + economy * 0.3 + reliability * 0.3)
+  const ovr = clamp(rawOvr, band.ovrMin, band.ovrMax)
+
   const name = uniqueName(rng, excludeNames)
   excludeNames.add(name.toLowerCase())
+  const tags = buildTags(role, impact, economy, reliability, roleFit)
 
   return {
     id: `adv-${idSuffix}`,
@@ -117,13 +156,14 @@ export function generateAdventurer(
     classId,
     role,
     subclassId,
-    ovr: clampedOvr,
+    ovr,
     impact,
     economy,
     reliability,
     roleFit,
-    tags: buildTags(role, impact, economy, reliability, roleFit),
+    tags,
     rarity,
+    quirk: pickQuirk(rng, role, tags),
   }
 }
 
@@ -132,10 +172,4 @@ export function roleFitLabel(fit: number): string {
   if (fit >= 2) return 'Хорошо'
   if (fit >= 0) return 'Средне'
   return 'Слабо'
-}
-
-export function rarityLabel(rarity: CardRarity): string {
-  if (rarity === 'legendary') return 'Легендарная'
-  if (rarity === 'rare') return 'Редкая'
-  return 'Обычная'
 }

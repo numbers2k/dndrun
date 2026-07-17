@@ -1,8 +1,8 @@
 import { CLASS_LABEL, RACE_LABEL, spellLevelMark } from '../data/labels'
-import { SPELLS } from '../data/spells'
 import { SUBCLASS_MAP } from '../data/pools'
+import { loadCareer } from '../game/career'
 import { roleFitLabel } from '../game/generateAdventurer'
-import { getBestSpellsFromPool } from '../game/scoring'
+import { careerSeenSpells, getBestSpellsFromPool } from '../game/scoring'
 import type { AdventurerDef } from '../game/types'
 import { ROLE_LABEL_FULL } from '../game/types'
 
@@ -12,7 +12,8 @@ interface AdventurerModalProps {
 }
 
 export function AdventurerModal({ adventurer, onClose }: AdventurerModalProps) {
-  const best = getBestSpellsFromPool(adventurer, SPELLS, 14)
+  const career = loadCareer()
+  const best = getBestSpellsFromPool(adventurer, careerSeenSpells(career), 14)
   const classFits = best.filter((r) => r.classFit)
   const others = best.filter((r) => !r.classFit)
   const subclass = adventurer.subclassId ? SUBCLASS_MAP[adventurer.subclassId] : null
@@ -38,47 +39,56 @@ export function AdventurerModal({ adventurer, onClose }: AdventurerModalProps) {
               Посадка: {roleFitLabel(adventurer.roleFit)} · удар {adventurer.impact} · ресурс{' '}
               {adventurer.economy} · надёжность {adventurer.reliability}
             </p>
+            {adventurer.quirk && <p className="modal-quirk">{adventurer.quirk}</p>}
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Закрыть">
             ×
           </button>
         </header>
 
-        {classFits.length > 0 && (
+        {best.length === 0 ? (
           <section>
-            <h3>Сильные для класса</h3>
-            <div className="modal-spell-grid">
-              {classFits.map((row) => (
-                <div key={row.spell.id} className="modal-spell-row">
-                  <div className="modal-spell-art">{spellLevelMark(row.spell.level)}</div>
-                  <div>
-                    <strong>{row.spell.name}</strong>
-                    <span>
-                      фит {row.fit.toFixed(1)} · {row.spell.school}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="modal-fit">Пока мало знакомых заклинаний — смотри наборы в драфте.</p>
           </section>
-        )}
-
-        <section>
-          <h3>{classFits.length > 0 ? 'Другие варианты' : 'Лучшие заклинания'}</h3>
-          <div className="modal-spell-grid">
-            {(classFits.length > 0 ? others : best).slice(0, 8).map((row) => (
-              <div key={row.spell.id} className="modal-spell-row">
-                <div className="modal-spell-art">{spellLevelMark(row.spell.level)}</div>
-                <div>
-                  <strong>{row.spell.name}</strong>
-                  <span>
-                    фит {row.fit.toFixed(1)} · {row.spell.school}
-                  </span>
+        ) : (
+          <>
+            {classFits.length > 0 && (
+              <section>
+                <h3>Сильные для класса</h3>
+                <div className="modal-spell-grid">
+                  {classFits.map((row) => (
+                    <div key={row.spell.id} className="modal-spell-row">
+                      <div className="modal-spell-art">{spellLevelMark(row.spell.level)}</div>
+                      <div>
+                        <strong>{row.spell.name}</strong>
+                        <span>
+                          фит {row.fit.toFixed(1)} · {row.spell.school}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </section>
+            )}
+
+            <section>
+              <h3>{classFits.length > 0 ? 'Другие знакомые' : 'Знакомые заклинания'}</h3>
+              <div className="modal-spell-grid">
+                {(classFits.length > 0 ? others : best).slice(0, 8).map((row) => (
+                  <div key={row.spell.id} className="modal-spell-row">
+                    <div className="modal-spell-art">{spellLevelMark(row.spell.level)}</div>
+                    <div>
+                      <strong>{row.spell.name}</strong>
+                      <span>
+                        фит {row.fit.toFixed(1)} · {row.spell.school}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          </>
+        )}
       </div>
     </div>
   )

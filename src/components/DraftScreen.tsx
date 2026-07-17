@@ -16,7 +16,8 @@ import {
   startRunFromSave,
 } from '../game/draft'
 import { createSeed } from '../game/rng'
-import { partyCount } from '../game/scoring'
+import { chapterThreatBand } from '../game/simulate'
+import { computeScore, partyCount, rosterFromParty } from '../game/scoring'
 import type { AdventurerDef, CurrentPack, RunState, SpellDef } from '../game/types'
 import { PARTY_SIZE, ROLE_LABEL_FULL } from '../game/types'
 import { DraftAdventurerModal } from './DraftAdventurerModal'
@@ -114,11 +115,26 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
   const locked = state.pendingCommit || state.screen === 'campaign'
   const awaitingStart = state.pendingCommit
   const inCampaign = state.screen === 'campaign'
+  const commitScore = useMemo(() => {
+    if (!awaitingStart) return null
+    const roster = rosterFromParty(state.party)
+    return computeScore(roster, state.spellPool, state.spellAssign, state.spellSlots)
+  }, [
+    awaitingStart,
+    state.party,
+    state.spellPool,
+    state.spellAssign,
+    state.spellSlots,
+  ])
+  const ch1Threat = useMemo(() => {
+    if (!awaitingStart) return null
+    return chapterThreatBand(1, state.difficultyThreat, state.runPath)
+  }, [awaitingStart, state.difficultyThreat, state.runPath])
 
   return (
     <>
       <div className="draft-322 has-pack-hint">
-        <PartyColumn state={state} />
+        <PartyColumn state={state} onChange={onChange} spellDrag={awaitingStart} />
 
         <section className="draft-right">
           <div className="draft-pack-col">
@@ -193,7 +209,7 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
                   >
                     <button
                       type="button"
-                      className="player-card pickable compact is-spell"
+                      className={`player-card pickable compact is-spell rarity-${spell.rarity}`}
                       disabled={!canPickSpell(state, spell) || flipping}
                       onClick={() => setPick({ kind: 'spell', spell })}
                       title={spellLevelHint(spell.level)}
@@ -221,12 +237,24 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
 
           {awaitingStart ? (
             <div className="draft-commit">
+              {commitScore && ch1Threat && (
+                <p className="draft-threat-preview">
+                  Сила отряда <strong>{commitScore.overall}</strong>
+                  {' · '}
+                  гл.1 угроза ≈ {ch1Threat.min}–{ch1Threat.max}
+                  {commitScore.overall >= ch1Threat.max
+                    ? ' — запас есть'
+                    : commitScore.overall >= ch1Threat.min
+                      ? ' — на грани'
+                      : ' — будет туго'}
+                </p>
+              )}
               <button
                 type="button"
                 className="btn btn-primary btn-block"
                 onClick={() => onChange(commitDraft(state))}
               >
-                Начать Великий Поход →
+                Начать вылазку →
               </button>
               <button
                 type="button"

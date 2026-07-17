@@ -99,7 +99,11 @@ export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPage
   }, [revealResults])
 
   const showResults =
-    revealResults && Boolean(state.result) && !state.pendingUpgrade
+    revealResults &&
+    Boolean(state.result) &&
+    !state.pendingUpgrade &&
+    !state.pendingCamp &&
+    !state.pendingRoute
 
   return (
     <div className="run-page">

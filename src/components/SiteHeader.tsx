@@ -12,7 +12,7 @@ export function SiteHeader({ onHome, onHowTo }: SiteHeaderProps) {
           type="button"
           className="brand-mark site-header-brand"
           onClick={onHome}
-          aria-label="На главную"
+          aria-label="В гильдию"
         >
           dndrun
         </button>

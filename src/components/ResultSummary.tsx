@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { CLASS_LABEL } from '../data/labels'
-import { PATH_STAGES } from '../game/simulate'
+import { buildRunAutopsy } from '../game/autopsy'
+import { getSaveById, loadCareer } from '../game/career'
+import { feastPlaceLabel, TOTAL_STAGES } from '../game/simulate'
 import { rosterFromParty } from '../game/scoring'
 import type { RunState } from '../game/types'
 import { ROLE_LABEL_FULL } from '../game/types'
@@ -15,31 +17,72 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
   const result = state.result
   const roster = rosterFromParty(state.party)
 
-  const career = useMemo(() => {
-    const h = state.history
-    return {
-      runs: h.length,
-      deep: h.filter((x) => (x.stages ?? 0) >= 30).length,
-    }
-  }, [state.history])
+  const careerSave = useMemo(() => {
+    if (state.activeSaveId) return getSaveById(state.activeSaveId)
+    return null
+  }, [state.activeSaveId])
 
-  if (!result) return null
+  const career = careerSave?.career ?? loadCareer()
+  const history = careerSave?.history ?? state.history
+
+  const autopsy = useMemo(
+    () => (result ? buildRunAutopsy(result, result.score) : null),
+    [result],
+  )
+
+  if (!result || !autopsy) return null
 
   const failedStageNum = result.perfect
     ? null
-    : Math.min(result.stagesCleared + 1, PATH_STAGES.length)
+    : Math.min(result.stagesCleared + 1, TOTAL_STAGES)
+
+  const deepRuns = history.filter((x) => (x.stages ?? 0) >= 30).length
 
   return (
-    <section className="result-summary-block" aria-label="Итог похода">
+    <section className="result-summary-block" aria-label="Итог вылазки">
       <div className="result-summary-inner">
         <header className="result-summary-head">
-          <p className="result-eyebrow t-label">Итог похода · {state.teamName}</p>
+          <p className="result-eyebrow t-label">Итог вылазки · {state.teamName}</p>
           <h2 className="result-place t-hero">
             {result.perfect
-              ? 'Корона взята'
-              : `Провал на этапе ${failedStageNum}/${PATH_STAGES.length}`}
+              ? 'Пир оборван'
+              : `Провал на этапе ${failedStageNum}/${TOTAL_STAGES}`}
           </h2>
+          <p className="result-field-line">
+            Среди обречённых — {autopsy.placeLabel} · {autopsy.record} · дальше всех ушёл:{' '}
+            {autopsy.championName}
+          </p>
         </header>
+
+        {!result.perfect && (
+          <div className="result-autopsy" aria-label="Разбор вылазки">
+            <h3>Разбор</h3>
+            {autopsy.reasons.length > 0 && (
+              <p className="result-autopsy-reasons">
+                {autopsy.reasons.join(' · ')}
+              </p>
+            )}
+            <p className="result-autopsy-weak">
+              Слабая ось: <strong>{autopsy.weakest.label}</strong> ({autopsy.weakest.value})
+            </p>
+            <p className="result-autopsy-tip">
+              <strong>Что пробовать:</strong> {autopsy.tip}
+            </p>
+            {autopsy.failEncounters.length > 0 && (
+              <ul className="result-encounter-log">
+                {autopsy.failEncounters.map((m) => (
+                  <li key={`${m.round}-${m.opponent}-${m.won ? 'w' : 'l'}`}>
+                    <span>{m.opponent}</span>
+                    <em className={m.won ? 'won' : 'lost'}>
+                      {m.won ? 'победа' : 'поражение'} · сила {m.ourOvr} vs угроза{' '}
+                      {m.theirOvr}
+                    </em>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="result-summary-grid">
           <div className="result-left">
@@ -60,6 +103,7 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
                         {CLASS_LABEL[adv.classId]}
                         {spell ? ` · ${spell.name}` : ''}
                       </span>
+                      {adv.quirk && <em className="result-quirk">{adv.quirk}</em>}
                     </div>
                     <em>{adv.ovr}</em>
                   </li>
@@ -100,39 +144,42 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
               </div>
             )}
 
-            <div className="result-actions-322">
+            <div className="result-actions-row">
               <button type="button" className="btn btn-primary" onClick={onAgain}>
-                Новый забег
+                Новая вылазка
               </button>
               <button type="button" className="btn btn-secondary" onClick={onMenu}>
-                В меню
+                В гильдию
               </button>
             </div>
           </div>
 
           <div className="result-right">
-            <h3>Карьера</h3>
+            <h3>Гильдия</h3>
             <div className="career-grid">
               <div>
                 <strong>{career.runs}</strong>
-                <span>Всего</span>
+                <span>Вылазок</span>
               </div>
               <div>
-                <strong>{career.deep}</strong>
+                <strong>{deepRuns}</strong>
                 <span>Глубже 30</span>
               </div>
               <div>
-                <strong>{state.history[0]?.stages ?? 0}</strong>
-                <span>Последний</span>
+                <strong>{career.bestStage}</strong>
+                <span>Рекорд</span>
               </div>
             </div>
 
-            <h3 className="result-subhead">Последние забеги</h3>
+            <h3 className="result-subhead">Последние вылазки</h3>
             <ul className="career-runs">
-              {state.history.slice(0, 9).map((h) => (
+              {history.slice(0, 9).map((h) => (
                 <li key={`${h.date}-${h.ovr}`}>
                   <strong>{h.stages ?? '?'} эт.</strong>
-                  <span>сила отряда {h.ovr}</span>
+                  <span>
+                    сила {h.ovr}
+                    {h.place ? ` · ${feastPlaceLabel(h.place)}` : ''}
+                  </span>
                 </li>
               ))}
             </ul>

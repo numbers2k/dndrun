@@ -45,18 +45,18 @@
   --num-accent: var(--accent);
 
   /*
-   * Rarity — faded grades, not jewels
-   * common → dull ash · rare → bruised slate · legendary → bleached relic
+   * Rarity — readable on dark UI
+   * common → ash · rare → steel-blue · legendary → warm gold
    */
-  --rarity-common: #6e6e6e;
-  --rarity-common-soft: rgba(110, 110, 110, 0.12);
-  --rarity-common-border: rgba(110, 110, 110, 0.45);
-  --rarity-rare: #6a6878;
-  --rarity-rare-soft: rgba(106, 104, 120, 0.12);
-  --rarity-rare-border: rgba(106, 104, 120, 0.5);
-  --rarity-legendary: #b0aea4;
-  --rarity-legendary-soft: rgba(176, 174, 164, 0.12);
-  --rarity-legendary-border: rgba(176, 174, 164, 0.5);
+  --rarity-common: #9a9a9a;
+  --rarity-common-soft: rgba(154, 154, 154, 0.22);
+  --rarity-common-border: rgba(154, 154, 154, 0.65);
+  --rarity-rare: #5b7ab0;
+  --rarity-rare-soft: rgba(91, 122, 176, 0.28);
+  --rarity-rare-border: rgba(91, 122, 176, 0.78);
+  --rarity-legendary: #c4a35a;
+  --rarity-legendary-soft: rgba(196, 163, 90, 0.3);
+  --rarity-legendary-border: rgba(196, 163, 90, 0.85);
 
   /* —— Radius —— */
   --radius-sm: 6px;

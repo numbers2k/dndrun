@@ -1,4 +1,6 @@
+import type { RegionId } from '../data/regions'
 import type { SubclassId } from '../data/pools'
+import type { RunPath } from './path'
 
 export type RoleId = 'tank' | 'striker' | 'controller' | 'support' | 'scout'
 
@@ -46,6 +48,42 @@ export interface AdventurerDef {
   roleFit: number
   tags: string[]
   rarity: CardRarity
+  /** Короткая причуда / изъян (1 строка). */
+  quirk?: string
+}
+
+/** Модификаторы похода от лагерных выборов и сложности. */
+export interface CampaignMods {
+  /** Сдвиг угрозы (отрицательный = легче). */
+  threatAdjust: number
+  /** Буфер к силе отряда в проверках. */
+  ovrBuffer: number
+  /** Моды с этого индекса этапа (включительно). */
+  modFromStage: number | null
+  /** Моды до этого индекса этапа (исключая). */
+  modUntilStage: number | null
+}
+
+/** Выбор следующего края Порчи в лагере после босса главы. */
+export interface CampOffer {
+  id: string
+  kind: 'region'
+  regionId: RegionId
+  label: string
+  detail: string
+  threatAdjust: number
+  ovrBuffer: number
+  durationStages: number
+}
+
+/** Микрорешение маршрута главы (без combat RNG). */
+export interface RouteOffer {
+  id: string
+  label: string
+  detail: string
+  threatAdjust: number
+  ovrBuffer: number
+  durationStages: number
 }
 
 export interface SpellDef {
@@ -59,11 +97,12 @@ export interface SpellDef {
   /** Короткая фраза: что делает в бою. */
   blurb: string
   tags: string[]
-  /** Давление / урон (45–98). */
+  rarity: CardRarity
+  /** Давление / урон (полоса редкости). */
   pressure: number
-  /** Контроль / поле (45–98). */
+  /** Контроль / поле. */
   control: number
-  /** Поддержка / живучесть (45–98). */
+  /** Поддержка / живучесть. */
   sustain: number
 }
 
@@ -133,6 +172,8 @@ export interface SimMatch {
   won: boolean
   ourOvr: number
   theirOvr: number
+  /** Устарело: исход без кубика. Оставлено 0 для совместимости. */
+  noise?: number
 }
 
 export interface RunResult {
@@ -175,6 +216,16 @@ export interface RunState {
   result: RunResult | null
   /** Пауза выбора апгрейда после босса главы. */
   pendingUpgrade: SpellUpgradeOffer[] | null
+  /** Пауза лагерного выбора перед апгрейдом. */
+  pendingCamp: CampOffer[] | null
+  /** Микрорешение маршрута главы (после лагеря, до апгрейда). */
+  pendingRoute: RouteOffer[] | null
+  /** Накопленные моды похода. */
+  campaignMods: CampaignMods
+  /** Базовый сдвиг угрозы от сложности сейва. */
+  difficultyThreat: number
+  /** Путь вылазки: гл.1 известна; 2–10 — null, пока не дошли / не выбрали дверь. */
+  runPath: RunPath
   /** Сколько глав уже дали апгрейд. */
   upgradesTaken: number
   /** Драфт 5+5 собран — ждём старт или отказ, пак ещё виден. */
@@ -187,6 +238,13 @@ export interface RunState {
     stages?: number
     date: string
   }[]
+}
+
+export const DEFAULT_CAMPAIGN_MODS: CampaignMods = {
+  threatAdjust: 0,
+  ovrBuffer: 0,
+  modFromStage: null,
+  modUntilStage: null,
 }
 
 export interface SpellUpgradeOffer {

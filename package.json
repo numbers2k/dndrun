@@ -1,13 +1,15 @@
 {
   "name": "dndrun",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke:balance": "npx --yes tsx scripts/smoke-balance.mts",
+    "test:unit": "npx --yes tsx scripts/unit-tests.mts"
   },
   "dependencies": {
     "react": "^19.2.7",

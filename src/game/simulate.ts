@@ -1,5 +1,18 @@
+import { encountersForRegion } from '../data/regionEncounters'
+import type { RegionId } from '../data/regions'
+import { FIELD_STRENGTH_MAX, FIELD_STRENGTH_MIN } from './balance'
+import {
+  CHAPTER_COUNT,
+  PATH_STAGES,
+  TOTAL_STAGES,
+  buildPathForRun,
+  chapterThreatBandForPath,
+  type PathStageBlue,
+} from './path'
 import { SeededRng } from './rng'
 import type { ScoreBreakdown } from './types'
+
+export { CHAPTER_COUNT, TOTAL_STAGES, buildPathForRun }
 
 export interface FieldTeam {
   id: string
@@ -13,6 +26,8 @@ export interface EncounterDef {
   name: string
   threat: number
   won: boolean
+  ourPower: number
+  noise: number
 }
 
 export interface StageDef {
@@ -23,8 +38,8 @@ export interface StageDef {
   difficulty: number
   encounters: EncounterDef[]
   cleared: boolean
-  /** Почему прошли или провалили (2–3 коротких причины). */
   reasons: string[]
+  regionId?: RegionId | null
 }
 
 export interface CampaignPlan {
@@ -45,11 +60,11 @@ export interface CampaignPlan {
 }
 
 const RIVAL_NAMES = [
-  'Культ Пепла',
+  'Культ Масок',
   'Железный Синдикат',
   'Лунные Охотники',
   'Орден Костей',
-  'Вороны Бездны',
+  'Вороны Кубка',
   'Стражи Соли',
   'Певцы Склепа',
   'Гильдия Искры',
@@ -57,105 +72,39 @@ const RIVAL_NAMES = [
   'Каменный Круг',
   'Тихие Клинки',
   'Багровый Дозор',
-  'Пепельные Псы',
+  'Пустые Кубки',
   'Соляные Вестники',
-  'Круг Угля',
+  'Круг Масок',
   'Ночные Факелы',
   'Золотая Трясина',
 ]
 
-const CHAPTER_NAMES = [
-  'Пепельная дорога',
-  'Соляные топи',
-  'Костяной перевал',
-  'Лунные руины',
-  'Склеп Эха',
-  'Багровый мост',
-  'Берег Бездны',
-  'Чёрные врата',
-  'Чертог Короны',
-  'Трон Короны',
-]
-
-const CHAPTER_BLURBS = [
-  'Первые засады и пыль тракта',
-  'Топи, соль и слепые твари',
-  'Узкие тропы под обстрелом',
-  'Проклятые алтари под луной',
-  'Нежить и ловушки гробниц',
-  'Мост над пропастью огня',
-  'Разломы и шёпот пустоты',
-  'Культисты у порога трона',
-  'Элитная стража короны',
-  'Финальный владыка пути',
-]
-
-const ROUTE_NAMES = [
-  'Засада у обочины',
-  'Туманная гряда',
-  'Соляной штрек',
-  'Костяной спуск',
-  'Лунный двор',
-  'Эхо коридора',
-  'Багровый сход',
-  'Разлом берега',
-  'Чёрный проход',
-  'Зал стражи',
-]
-
-function buildPathStages(): {
-  id: string
-  name: string
-  kind: 'route' | 'boss'
-  chapter: number
-  difficulty: number
-  blurb: string
-}[] {
-  const stages = []
-  for (let ch = 0; ch < 10; ch += 1) {
-    for (let i = 0; i < 10; i += 1) {
-      const n = ch * 10 + i + 1
-      const isBoss = i === 9
-      const difficulty = Math.round(62 + (n - 1) * 0.42 + (isBoss ? 3 : 0))
-      stages.push({
-        id: `s${n}`,
-        name: isBoss ? `Босс: ${CHAPTER_NAMES[ch]}` : `${ROUTE_NAMES[i]} · гл.${ch + 1}`,
-        kind: (isBoss ? 'boss' : 'route') as 'route' | 'boss',
-        chapter: ch + 1,
-        difficulty,
-        blurb: isBoss ? CHAPTER_BLURBS[ch] : CHAPTER_BLURBS[ch],
-      })
-    }
-  }
-  return stages
-}
-
-export const PATH_STAGES = buildPathStages()
-export const TOTAL_STAGES = PATH_STAGES.length
-export const CHAPTER_COUNT = 10
-
-const STAGE_BLUEPRINT = PATH_STAGES
-
 const ENCOUNTER_POOL = [
-  'Засада гоблинов',
-  'Туманные ворги',
-  'Проклятый алтарь',
-  'Страж гробницы',
+  'Маскированный дозор',
+  'Тост из тумана',
+  'Проклятый алтарь пира',
+  'Страж пустых кубков',
   'Отряд наёмников',
-  'Огненный элементаль',
-  'Тень архимага',
+  'Гнилой кравчий',
+  'Тень распорядителя',
   'Костяной рыцарь',
-  'Культисты Пепла',
+  'Культисты Порчи',
   'Змей руин',
   'Призрак капитана',
-  'Каменный голем',
+  'Каменный хоровод',
   'Соляной ужас',
   'Лунный охотник',
-  'Бездонный шёпот',
+  'Шёпот пустого кубка',
 ]
 
-function ordinalRu(n: number): string {
-  return `${n}-е`
+/** Место среди обречённых — feast-лексика, не «лига». */
+export function feastPlaceLabel(n: number): string {
+  if (n <= 1) return 'у главы стола'
+  if (n === 2) return 'у правой руки'
+  if (n <= 4) return 'у верхней скатерти'
+  if (n <= 8) return 'среди тостов'
+  if (n <= 12) return 'у края стола'
+  return 'в тени зала'
 }
 
 function projectPlaces(our: number, field: FieldTeam[]): { low: number; high: number } {
@@ -167,10 +116,10 @@ function projectPlaces(our: number, field: FieldTeam[]): { low: number; high: nu
   return { low, high }
 }
 
-function rivalDepth(strength: number, rng: SeededRng): number {
+function rivalDepth(strength: number, rng: SeededRng, blueprint: PathStageBlue[]): number {
   let cleared = 0
-  for (let i = 0; i < STAGE_BLUEPRINT.length; i += 1) {
-    const diff = STAGE_BLUEPRINT[i].difficulty
+  for (let i = 0; i < blueprint.length; i += 1) {
+    const diff = blueprint[i].difficulty
     const noise = rng.next() * 8 - 3
     if (strength + noise >= diff - 1) cleared += 1
     else break
@@ -185,7 +134,10 @@ export function buildField(ourOvr: number, teamName: string, fieldSeed: number):
   for (let i = 0; i < 17; i += 1) {
     const name = names.splice(rng.int(0, names.length - 1), 1)[0] ?? `Отряд ${i + 1}`
     const strength = Math.round(
-      Math.min(110, Math.max(55, ourOvr + rng.int(-20, 18) + (i < 3 ? 5 : 0))),
+      Math.min(
+        FIELD_STRENGTH_MAX,
+        Math.max(FIELD_STRENGTH_MIN, ourOvr + rng.int(-18, 16) + (i < 3 ? 4 : 0)),
+      ),
     )
     rivals.push({ id: `riv-${i}`, name, strength, isUser: false })
   }
@@ -230,19 +182,49 @@ function stageReasons(
   return out.slice(0, 3)
 }
 
-/** Симуляция с учётом силы на каждом этапе (апгрейды меняют overall по пути через score). */
+export interface PlanCampaignOpts {
+  overallByStage?: number[]
+  threatAdjust?: number
+  ovrBuffer?: number
+  modFromStage?: number | null
+  modUntilStage?: number | null
+  difficultyThreat?: number
+  /** Путь вылазки (10 краёв). */
+  runPath?: readonly (RegionId | null)[]
+  /**
+   * Сколько этапов уже пройдено (счёт 1..100). Не переигрывать их:
+   * иначе после лагеря/апгрейда старые этапы сыпятся без прошлого запаса силы.
+   */
+  resumeFrom?: number
+}
+
+/** Симуляция с учётом силы и выбранного пути краёв. */
 export function planCampaign(
   score: ScoreBreakdown,
   seed: string,
   fieldSeed: number,
   teamName = 'Твой отряд',
-  /** overallOverrides[stageIndex] если сила росла после апгрейдов — иначе константа */
-  overallByStage?: number[],
+  overallByStageOrOpts?: number[] | PlanCampaignOpts,
 ): CampaignPlan {
+  const opts: PlanCampaignOpts = Array.isArray(overallByStageOrOpts)
+    ? { overallByStage: overallByStageOrOpts }
+    : (overallByStageOrOpts ?? {})
+  const blueprint = opts.runPath ? buildPathForRun(opts.runPath) : PATH_STAGES
   const baseOvr = score.overall
-  const rng = new SeededRng(`${seed}-crown-${baseOvr}-${fieldSeed}`)
+  const resumeFrom = Math.max(0, Math.min(blueprint.length, opts.resumeFrom ?? 0))
+  // Отдельный поток RNG после паузы — не перематываем прошлые броски.
+  const rng = new SeededRng(
+    resumeFrom > 0
+      ? `${seed}-feast-resume-${resumeFrom}-${baseOvr}-${fieldSeed}`
+      : `${seed}-feast-${baseOvr}-${fieldSeed}`,
+  )
   const field = buildField(baseOvr, teamName, fieldSeed)
   const { low: placeLow, high: placeHigh } = projectPlaces(baseOvr, field)
+  const difficultyThreat = opts.difficultyThreat ?? 0
+  const campThreat = opts.threatAdjust ?? 0
+  const campBuffer = opts.ovrBuffer ?? 0
+  const modFrom = opts.modFromStage
+  const modUntil = opts.modUntilStage
 
   const stages: StageDef[] = []
   let stagesCleared = -1
@@ -250,25 +232,54 @@ export function planCampaign(
   let wins = 0
   let losses = 0
 
-  for (let s = 0; s < STAGE_BLUEPRINT.length; s += 1) {
-    const bp = STAGE_BLUEPRINT[s]
-    const ourOvr = overallByStage?.[s] ?? baseOvr
+  for (let s = 0; s < blueprint.length; s += 1) {
+    const bp = blueprint[s]
+
+    // Уже пройденные до паузы — фиксируем победу, не бросаем заново.
+    if (s < resumeFrom) {
+      stages.push({
+        id: bp.id,
+        name: bp.name,
+        kind: bp.kind,
+        chapter: bp.chapter,
+        difficulty: bp.difficulty,
+        encounters: [],
+        cleared: true,
+        reasons: [],
+        regionId: bp.regionId,
+      })
+      stagesCleared = s
+      wins += bp.kind === 'boss' ? 3 : 2
+      continue
+    }
+
+    const campActive =
+      (modFrom === null || modFrom === undefined || s >= modFrom) &&
+      (modUntil === null || modUntil === undefined || s < modUntil) &&
+      (campThreat !== 0 || campBuffer !== 0)
+    const ourOvr = (opts.overallByStage?.[s] ?? baseOvr) + (campActive ? campBuffer : 0)
     const encCount = bp.kind === 'boss' ? 3 : 2
     const encounters: EncounterDef[] = []
     let stageWon = true
+    const threatShift = difficultyThreat + (campActive ? campThreat : 0)
 
+    const regionPool = [
+      ...encountersForRegion(bp.regionId),
+      ...ENCOUNTER_POOL,
+    ]
     for (let e = 0; e < encCount; e += 1) {
-      const threat = Math.round(bp.difficulty - 3 + e * 3 + rng.int(0, 2))
-      const noise = rng.next() * 6 - 2.5
-      const won = ourOvr + noise >= threat
+      const threat = Math.round(bp.difficulty - 1 + e * 2 + rng.int(0, 1) + threatShift)
+      const won = ourOvr >= threat
       encounters.push({
         id: `${bp.id}-e${e}`,
         name:
           e === encCount - 1 && bp.kind === 'boss'
-            ? `Босс: ${CHAPTER_NAMES[bp.chapter - 1]}`
-            : rng.pick(ENCOUNTER_POOL),
+            ? bp.bossTitle
+            : rng.pick(regionPool),
         threat,
         won,
+        ourPower: ourOvr,
+        noise: 0,
       })
       if (won) wins += 1
       else {
@@ -278,6 +289,7 @@ export function planCampaign(
       }
     }
 
+    const effectiveDiff = bp.difficulty + threatShift
     stages.push({
       id: bp.id,
       name: bp.name,
@@ -286,7 +298,8 @@ export function planCampaign(
       difficulty: bp.difficulty,
       encounters,
       cleared: stageWon,
-      reasons: stageReasons(score, ourOvr, bp.difficulty, stageWon),
+      reasons: stageReasons(score, ourOvr, effectiveDiff, stageWon),
+      regionId: bp.regionId,
     })
 
     if (stageWon) stagesCleared = s
@@ -296,8 +309,8 @@ export function planCampaign(
     }
   }
 
-  for (let s = stages.length; s < STAGE_BLUEPRINT.length; s += 1) {
-    const bp = STAGE_BLUEPRINT[s]
+  for (let s = stages.length; s < blueprint.length; s += 1) {
+    const bp = blueprint[s]
     stages.push({
       id: bp.id,
       name: bp.name,
@@ -307,14 +320,18 @@ export function planCampaign(
       encounters: [],
       cleared: false,
       reasons: [],
+      regionId: bp.regionId,
     })
   }
 
-  const perfect = stagesCleared === STAGE_BLUEPRINT.length - 1
+  const perfect = stagesCleared === blueprint.length - 1
 
   const depths = field.map((t) => {
     if (t.isUser) return { t, depth: stagesCleared + 1 }
-    return { t, depth: rivalDepth(t.strength, new SeededRng(`${seed}-depth-${t.id}-${fieldSeed}`)) }
+    return {
+      t,
+      depth: rivalDepth(t.strength, new SeededRng(`${seed}-depth-${t.id}-${fieldSeed}`), blueprint),
+    }
   })
   depths.sort((a, b) => {
     if (b.depth !== a.depth) return b.depth - a.depth
@@ -332,7 +349,7 @@ export function planCampaign(
     place,
     placeLow,
     placeHigh,
-    placeLabel: ordinalRu(place),
+    placeLabel: feastPlaceLabel(place),
     championName,
     perfect,
     record: `${wins}–${losses}`,
@@ -343,4 +360,14 @@ export function planCampaign(
 
 export function isChapterBoss(stageIndex: number): boolean {
   return (stageIndex + 1) % 10 === 0
+}
+
+/** Совместимость: полоса угрозы главы по текущему PATH или runPath. */
+export function chapterThreatBand(
+  chapter: number,
+  threatAdjust = 0,
+  runPath?: readonly (RegionId | null)[],
+): { min: number; max: number } {
+  const path = runPath ? buildPathForRun(runPath) : PATH_STAGES
+  return chapterThreatBandForPath(path, chapter, threatAdjust)
 }

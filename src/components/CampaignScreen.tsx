@@ -2,24 +2,33 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { pickAbandonQuote } from '../data/abandonQuotes'
 import { getSaveById, loadCareer } from '../game/career'
 import {
+  loadCampaignPace,
+  phaseAfterBoss,
+  saveCampaignPace,
+  timingForPace,
+  type CampaignPace,
+  type CampaignPhase,
+} from '../game/campaignMachine'
+import {
   afterUpgradeContinue,
+  applyCampChoice,
+  applyRouteChoice,
   applySpellUpgrade,
+  skipCampChoice,
+  skipRouteChoice,
   skipSpellUpgrade,
   startRunFromSave,
 } from '../game/draft'
 import { createSeed } from '../game/rng'
-import { CHAPTER_COUNT, PATH_STAGES, TOTAL_STAGES } from '../game/simulate'
+import {
+  CHAPTER_COUNT,
+  TOTAL_STAGES,
+  buildPathForRun,
+  chapterThreatBand,
+} from '../game/simulate'
 import { computeScore, rosterFromParty } from '../game/scoring'
 import { stageFateLore, stagePlaceLore } from '../data/stageFlavor'
 import type { RunState } from '../game/types'
-
-const STAGE_MS = 1750
-const BOSS_SUMMARY_MS = 1000
-const FAIL_HOLD_MS = 3000
-const REWIND_MS = 3200
-const TRACK_SCROLL_MS = 420
-/** Пауза после приезда на кадр похода, до rewind / старта. */
-const FRAME_SETTLE_MS = 1000
 
 /** Медленный старт → ускорение (откат ленты). */
 function easeInCubic(t: number): number {
@@ -48,16 +57,6 @@ interface CampaignScreenProps {
 
 type TrialStatus = 'pending' | 'active' | 'cleared' | 'failed' | 'ghost'
 
-type Phase =
-  | 'hold'
-  | 'rewind'
-  | 'idle'
-  | 'running'
-  | 'bossSummary'
-  | 'upgrade'
-  | 'holding'
-  | 'done'
-
 export function CampaignScreen({
   state,
   onChange,
@@ -68,7 +67,10 @@ export function CampaignScreen({
   frameReady,
 }: CampaignScreenProps) {
   const roster = rosterFromParty(state.party)
+  const pathStages = useMemo(() => buildPathForRun(state.runPath), [state.runPath])
   const [quote] = useState(() => pickAbandonQuote(roster.map((a) => a.name)))
+  const [pace, setPace] = useState<CampaignPace>(() => loadCampaignPace())
+  const timing = useMemo(() => timingForPace(pace), [pace])
   const score = useMemo(
     () => computeScore(roster, state.spellPool, state.spellAssign, state.spellSlots),
     [roster, state.spellPool, state.spellAssign, state.spellSlots],
@@ -89,9 +91,9 @@ export function CampaignScreen({
   const bestStage = career.bestStage
   const needsRewind = bestStage > 1 && !state.result
 
-  const [phase, setPhase] = useState<Phase>('hold')
+  const [phase, setPhase] = useState<CampaignPhase>('hold')
   const [statuses, setStatuses] = useState<TrialStatus[]>(() =>
-    PATH_STAGES.map((_, i) => (needsRewind && i < bestStage ? 'ghost' : 'pending')),
+    pathStages.map((_, i) => (needsRewind && i < bestStage ? 'ghost' : 'pending')),
   )
   const [banner, setBanner] = useState<string | null>(null)
   const [focusIdx, setFocusIdx] = useState(needsRewind ? Math.max(0, bestStage - 1) : 0)
@@ -111,9 +113,17 @@ export function CampaignScreen({
   const scrollRafRef = useRef(0)
   const holdBootedRef = useRef(false)
 
+  // Без флагов camp/route/upgrade — иначе выбор двери заново гоняет bossSummary.
   const resultKey = state.result
-    ? `${state.seed}:${state.upgradesTaken}:${state.result.stagesCleared}:${state.pendingUpgrade ? 'u' : 'f'}`
+    ? `${state.seed}:${state.upgradesTaken}:${state.result.stagesCleared}`
     : null
+
+  const STAGE_MS = timing.stageMs
+  const BOSS_SUMMARY_MS = timing.bossSummaryMs
+  const FAIL_HOLD_MS = timing.failHoldMs
+  const REWIND_MS = timing.rewindMs
+  const TRACK_SCROLL_MS = timing.trackScrollMs
+  const frameSettleMs = timing.frameSettleMs
 
   const clearTimers = () => {
     timersRef.current.forEach((id) => window.clearTimeout(id))
@@ -185,7 +195,7 @@ export function CampaignScreen({
   }
 
   const paintCleared = (upToExclusive: number): TrialStatus[] =>
-    PATH_STAGES.map((_, i) =>
+    pathStages.map((_, i) =>
       i < upToExclusive ? ('cleared' as TrialStatus) : ('pending' as TrialStatus),
     )
 
@@ -206,13 +216,13 @@ export function CampaignScreen({
         rewindDoneRef.current = true
         setPhase('idle')
       }
-    }, FRAME_SETTLE_MS)
+    }, frameSettleMs)
     timersRef.current.push(id)
     return () => {
       window.clearTimeout(id)
       timersRef.current = timersRef.current.filter((t) => t !== id)
     }
-  }, [frameReady, needsRewind])
+  }, [frameReady, needsRewind, frameSettleMs])
 
   /** Пока hold — поставить ленту на bestStage без анимации. */
   useEffect(() => {
@@ -240,9 +250,9 @@ export function CampaignScreen({
     const runRewind = async () => {
       const from = Math.min(bestStage, TOTAL_STAGES)
       const startIdx = Math.max(0, from - 1)
-      const next = PATH_STAGES.map((_, i) => (i < from ? ('ghost' as TrialStatus) : 'pending'))
+      const next = pathStages.map((_, i) => (i < from ? ('ghost' as TrialStatus) : 'pending'))
       setStatuses([...next])
-      setBanner('Новый забег — откат к началу пути…')
+      setBanner('Новая вылазка — откат к Трезвому Двору…')
 
       // Дождаться layout карточек
       await wait(40)
@@ -253,7 +263,7 @@ export function CampaignScreen({
       const track = trackRef.current
       if (!track || startX === null || endX === null) {
         rewindDoneRef.current = true
-        setStatuses(PATH_STAGES.map(() => 'pending'))
+        setStatuses(pathStages.map(() => 'pending'))
         setBanner(null)
         setPhase('idle')
         return
@@ -287,7 +297,7 @@ export function CampaignScreen({
             setBanner(`Откат… этап ${visualIdx + 1}`)
             // Уже «смотали» всё правее текущей позиции
             setStatuses(
-              PATH_STAGES.map((_, i) => {
+              pathStages.map((_, i) => {
                 if (i >= from) return 'pending'
                 if (i > visualIdx) return 'pending'
                 return 'ghost'
@@ -307,7 +317,7 @@ export function CampaignScreen({
 
       if (!cancelled) {
         rewindDoneRef.current = true
-        setStatuses(PATH_STAGES.map(() => 'pending'))
+        setStatuses(pathStages.map(() => 'pending'))
         setBanner(null)
         setFocusIdx(0)
         setDisplayStage(1)
@@ -331,7 +341,7 @@ export function CampaignScreen({
     playedUpToRef.current = 0
     revealedRef.current = false
     setPhase('running')
-    setBanner('Поход начался…')
+    setBanner('Вылазка началась…')
     onFinished()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, state.result, frameReady])
@@ -344,6 +354,7 @@ export function CampaignScreen({
     cancelRef.current = false
     const result = state.result
     const pendingUpgrade = state.pendingUpgrade
+    const pendingCamp = state.pendingCamp
 
     const runAnim = async () => {
       setPhase('running')
@@ -354,12 +365,15 @@ export function CampaignScreen({
 
       for (let i = from; i < cleared; i += 1) {
         if (cancelRef.current || animGenRef.current !== gen) return
+        // Ранние этапы / зона старого рекорда — быстрее
+        const fast = i < Math.max(0, bestStage - 1)
+        const stepMs = fast ? Math.round(STAGE_MS * 0.35) : STAGE_MS
         next[i] = 'active'
         setStatuses([...next])
-        setBanner(`${i + 1}/${TOTAL_STAGES}: ${stageDisplayName(PATH_STAGES[i].name)}`)
-        await ensureVisible(i, TRACK_SCROLL_MS)
+        setBanner(`${i + 1}/${TOTAL_STAGES}: ${stageDisplayName(pathStages[i].name)}`)
+        await ensureVisible(i, Math.min(TRACK_SCROLL_MS, stepMs))
         if (cancelRef.current || animGenRef.current !== gen) return
-        await wait(Math.max(0, STAGE_MS - TRACK_SCROLL_MS))
+        await wait(Math.max(0, stepMs - TRACK_SCROLL_MS))
         if (cancelRef.current || animGenRef.current !== gen) return
         next[i] = 'cleared'
         setStatuses([...next])
@@ -369,14 +383,34 @@ export function CampaignScreen({
       if (cancelRef.current || animGenRef.current !== gen) return
       playedUpToRef.current = cleared
 
-      if (pendingUpgrade) {
+      if (pendingUpgrade || pendingCamp) {
         const bossIdx = Math.max(0, cleared - 1)
-        const ch = PATH_STAGES[bossIdx]?.chapter ?? 1
+        const ch = pathStages[bossIdx]?.chapter ?? 1
         setBossChapter(ch)
-        setBanner(`Глава ${ch} пройдена`)
+        const setpiece = pathStages[bossIdx]
+        setBanner(
+          setpiece?.kind === 'boss'
+            ? `${stageDisplayName(setpiece.name)} пал`
+            : `Глава ${ch} пройдена`,
+        )
         setPhase('bossSummary')
         await wait(BOSS_SUMMARY_MS)
         if (cancelRef.current || animGenRef.current !== gen) return
+        const nextPhase = phaseAfterBoss({
+          hasCamp: Boolean(pendingCamp),
+          hasRoute: Boolean(state.pendingRoute),
+          hasUpgrade: Boolean(pendingUpgrade),
+        })
+        if (nextPhase === 'camp') {
+          setBanner('Лагерь: выбери край Порчи')
+          setPhase('camp')
+          return
+        }
+        if (nextPhase === 'route') {
+          setBanner('Как идти дальше по главе?')
+          setPhase('route')
+          return
+        }
         setBanner('Выбери усиление заклинаний')
         setPhase('upgrade')
         return
@@ -384,15 +418,24 @@ export function CampaignScreen({
 
       if (!result.perfect && cleared < TOTAL_STAGES) {
         const failIdx = cleared
-        if (failIdx < PATH_STAGES.length) {
+        if (failIdx < pathStages.length) {
           next[failIdx] = 'failed'
           setStatuses([...next])
           await ensureVisible(failIdx, TRACK_SCROLL_MS)
           const why = result.stageReasons[failIdx]?.slice(0, 2).join(' · ')
+          const failSpell = roster
+            .map((a) => {
+              const idx = score.assignment[a.id]
+              return idx != null ? state.spellPool[idx] : null
+            })
+            .find(Boolean)
+          const fantasy = failSpell ? `${failSpell.name}: ${failSpell.blurb}` : null
           setBanner(
-            why
-              ? `Провал: ${stageDisplayName(PATH_STAGES[failIdx].name)} — ${why}`
-              : `Провал: ${stageDisplayName(PATH_STAGES[failIdx].name)}`,
+            fantasy
+              ? `Провал: ${stageDisplayName(pathStages[failIdx].name)} — ${fantasy}`
+              : why
+                ? `Провал: ${stageDisplayName(pathStages[failIdx].name)} — ${why}`
+                : `Провал: ${stageDisplayName(pathStages[failIdx].name)}`,
           )
         }
         setPhase('holding')
@@ -403,7 +446,7 @@ export function CampaignScreen({
         return
       }
 
-      setBanner(result.perfect ? 'Корона взята!' : 'Поход завершён')
+      setBanner(result.perfect ? 'Пир оборван!' : 'Вылазка оборвалась')
       setPhase('holding')
       await wait(FAIL_HOLD_MS)
       if (animGenRef.current !== gen) return
@@ -426,7 +469,7 @@ export function CampaignScreen({
     if (!state.result) return
 
     const cleared = state.result.stagesCleared
-    const next = PATH_STAGES.map((_, i) => {
+    const next = pathStages.map((_, i) => {
       if (i < cleared) return 'cleared' as TrialStatus
       if (i === cleared && !state.result!.perfect && !state.pendingUpgrade) {
         return 'failed' as TrialStatus
@@ -437,17 +480,57 @@ export function CampaignScreen({
     playedUpToRef.current = cleared
     void ensureVisible(Math.min(Math.max(cleared - 1, 0), TOTAL_STAGES - 1), TRACK_SCROLL_MS)
 
-    if (state.pendingUpgrade) {
-      const bossIdx = Math.max(0, cleared - 1)
-      setBossChapter(PATH_STAGES[bossIdx]?.chapter ?? 1)
+    const bossIdx = Math.max(0, cleared - 1)
+    setBossChapter(pathStages[bossIdx]?.chapter ?? 1)
+    const nextPhase = phaseAfterBoss({
+      hasCamp: Boolean(state.pendingCamp),
+      hasRoute: Boolean(state.pendingRoute),
+      hasUpgrade: Boolean(state.pendingUpgrade),
+    })
+    if (nextPhase === 'camp') {
+      setBanner('Лагерь: выбери край Порчи')
+      setPhase('camp')
+      return
+    }
+    if (nextPhase === 'route') {
+      setBanner('Как идти дальше по главе?')
+      setPhase('route')
+      return
+    }
+    if (nextPhase === 'upgrade') {
       setBanner('Выбери усиление')
       setPhase('upgrade')
       return
     }
 
-    setBanner(state.result.perfect ? 'Корона взята!' : 'Поход завершён')
+    setBanner(state.result.perfect ? 'Пир оборван!' : 'Вылазка оборвалась')
     revealResultsOnce()
     setPhase('done')
+  }
+
+  const pickCamp = (offerId: string | null) => {
+    cancelRef.current = true
+    clearTimers()
+    animGenRef.current += 1
+    const next = offerId ? applyCampChoice(state, offerId) : skipCampChoice(state)
+    if (next.pendingRoute?.length) {
+      setBanner('Как идти дальше по главе?')
+      setPhase('route')
+    } else {
+      setBanner('Выбери усиление заклинаний')
+      setPhase('upgrade')
+    }
+    onChange(next)
+  }
+
+  const pickRoute = (offerId: string | null) => {
+    cancelRef.current = true
+    clearTimers()
+    animGenRef.current += 1
+    const next = offerId ? applyRouteChoice(state, offerId) : skipRouteChoice(state)
+    setBanner('Выбери усиление заклинаний')
+    setPhase('upgrade')
+    onChange(next)
   }
 
   const pickUpgrade = (offerId: string | null) => {
@@ -459,15 +542,32 @@ export function CampaignScreen({
       : skipSpellUpgrade(state)
     const next = afterUpgradeContinue(base)
     setBossChapter(null)
-    setBanner('Поход продолжается…')
+    setBanner('Вылазка продолжается…')
     setPhase('running')
     onChange(next)
   }
 
   const unlockedTiers = career.maxSpellTier
-  const chapterOfFocus = PATH_STAGES[focusIdx]?.chapter ?? 1
-  const showUpgrade = phase === 'upgrade' && Boolean(state.pendingUpgrade)
+  const chapterOfFocus = pathStages[focusIdx]?.chapter ?? 1
+  const showCamp = phase === 'camp' && Boolean(state.pendingCamp)
+  const showRoute =
+    phase === 'route' && Boolean(state.pendingRoute) && !state.pendingCamp
+  const showUpgrade =
+    phase === 'upgrade' &&
+    Boolean(state.pendingUpgrade) &&
+    !state.pendingCamp &&
+    !state.pendingRoute
   const showBossSummary = phase === 'bossSummary' && bossChapter !== null
+  const nextChapter = Math.min(
+    CHAPTER_COUNT,
+    (bossChapter ?? chapterOfFocus) + (showCamp || showRoute || showUpgrade ? 1 : 0),
+  )
+  const threatBand = chapterThreatBand(
+    Math.max(1, nextChapter),
+    state.difficultyThreat +
+      (showRoute || showUpgrade ? state.campaignMods.threatAdjust : 0),
+    state.runPath,
+  )
 
   return (
     <div className="campaign-panel" id="campaign-track">
@@ -485,27 +585,53 @@ export function CampaignScreen({
             />
           </label>
           <p className="campaign-meta">
-            Сила {score.overall} · Этап {displayStage}/{TOTAL_STAGES} · Глава {chapterOfFocus}/
-            {CHAPTER_COUNT}
+            Сила {score.overall}
+            {state.campaignMods.ovrBuffer
+              ? ` (+${state.campaignMods.ovrBuffer} лагерь)`
+              : ''}{' '}
+            · Этап {displayStage}/{TOTAL_STAGES} · Глава {chapterOfFocus}/{CHAPTER_COUNT}
           </p>
           <p className="campaign-career">
-            Карьера: лучший этап {bestStage || '—'} · тир заклинаний {unlockedTiers} · открыто
+            Гильдия: лучший этап {bestStage || '—'} · тир заклинаний {unlockedTiers} · открыто
             классов {career.unlockedClasses.length}
           </p>
+          {(showCamp || showRoute || showUpgrade) && (
+            <p className="campaign-threat-band">
+              Впереди гл. {nextChapter}: угроза ≈ {threatBand.min}–{threatBand.max} (сила{' '}
+              {score.overall +
+                (showRoute || showUpgrade ? state.campaignMods.ovrBuffer : 0)}
+              )
+            </p>
+          )}
         </div>
-        {(phase === 'running' || phase === 'bossSummary' || phase === 'holding') && (
-          <button type="button" className="btn btn-secondary btn-sm ready-skip" onClick={skip}>
-            Пропуск »
+        <div className="campaign-head-actions">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            title="Скорость анимации похода"
+            onClick={() => {
+              const next: CampaignPace = pace === 'fast' ? 'cinematic' : 'fast'
+              setPace(next)
+              saveCampaignPace(next)
+            }}
+          >
+            {pace === 'fast' ? 'Быстро' : 'Кино'}
           </button>
-        )}
+          {(phase === 'running' || phase === 'bossSummary' || phase === 'holding') && (
+            <button type="button" className="btn btn-secondary btn-sm ready-skip" onClick={skip}>
+              Пропуск »
+            </button>
+          )}
+        </div>
       </header>
 
       {banner && <div className="ready-banner">{banner}</div>}
 
       <div className="campaign-track" ref={trackRef}>
-        {PATH_STAGES.map((stage, idx) => {
+        {pathStages.map((stage, idx) => {
           const st = statuses[idx] ?? 'pending'
-          const place = stagePlaceLore(stage)
+          const unknown = stage.unknown
+          const place = stagePlaceLore(stage, stage.regionId ?? null)
           const fate = stageFateLore(stage, st, state.seed)
 
           return (
@@ -514,7 +640,7 @@ export function CampaignScreen({
               ref={(el) => {
                 itemRefs.current[idx] = el
               }}
-              className={`campaign-card ${stage.kind} status-${st}`}
+              className={`campaign-card ${stage.kind} status-${st}${unknown ? ' is-unknown' : ''}`}
               onClick={() => {
                 setFocusIdx(idx)
                 void ensureVisible(idx, TRACK_SCROLL_MS)
@@ -528,20 +654,24 @@ export function CampaignScreen({
                 }
               }}
             >
-              <strong className="campaign-card-name">{stageDisplayName(stage.name)}</strong>
+              <strong className="campaign-card-name">
+                {unknown ? '???' : stageDisplayName(stage.name)}
+              </strong>
               <span className="campaign-card-lore">{place}</span>
               <span className="campaign-card-fate">{fate || '\u00a0'}</span>
               <div className="campaign-card-foot">
                 <em className="campaign-card-status">
-                  {st === 'cleared'
-                    ? 'Пройден'
-                    : st === 'failed'
-                      ? 'Провал'
-                      : st === 'active'
-                        ? 'Сейчас'
-                        : st === 'ghost'
-                          ? 'Рекорд'
-                          : 'Впереди'}
+                  {unknown && st === 'pending'
+                    ? 'Неизвестно'
+                    : st === 'cleared'
+                      ? 'Пройден'
+                      : st === 'failed'
+                        ? 'Провал'
+                        : st === 'active'
+                          ? 'Сейчас'
+                          : st === 'ghost'
+                            ? 'Рекорд'
+                            : 'Впереди'}
                 </em>
                 <span className="campaign-card-num">{idx + 1}</span>
               </div>
@@ -561,10 +691,61 @@ export function CampaignScreen({
           </div>
         )}
 
+        {showCamp && state.pendingCamp && (
+          <div className="upgrade-panel upgrade-panel-columns camp-panel">
+            <h3>Куда идти дальше?</h3>
+            <p>
+              Двери на следующую главу (назад нельзя). Сравни угрозу и запас — босса края не
+              спойлерим. Угроза ≈ {threatBand.min}–{threatBand.max}.
+            </p>
+            <div className="upgrade-columns">
+              {state.pendingCamp.map((offer) => (
+                <button
+                  key={offer.id}
+                  type="button"
+                  className="btn btn-secondary upgrade-btn upgrade-col"
+                  onClick={() => pickCamp(offer.id)}
+                >
+                  <strong>{offer.label}</strong>
+                  <span>{offer.detail}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => pickCamp(null)}>
+              Случайная дверь
+            </button>
+          </div>
+        )}
+
+        {showRoute && state.pendingRoute && (
+          <div className="upgrade-panel upgrade-panel-columns camp-panel">
+            <h3>Как идти?</h3>
+            <p>Одно решение на главу — без бросков в бою. Влияет на угрозу и запас силы.</p>
+            <div className="upgrade-columns">
+              {state.pendingRoute.map((offer) => (
+                <button
+                  key={offer.id}
+                  type="button"
+                  className="btn btn-secondary upgrade-btn upgrade-col"
+                  onClick={() => pickRoute(offer.id)}
+                >
+                  <strong>{offer.label}</strong>
+                  <span>{offer.detail}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => pickRoute(null)}>
+              Случайный выбор
+            </button>
+          </div>
+        )}
+
         {showUpgrade && state.pendingUpgrade && (
           <div className="upgrade-panel upgrade-panel-columns">
             <h3>Усиление заклинаний</h3>
-            <p>Выбери одно усиление перед следующей главой.</p>
+            <p>
+              Выбери одно усиление. Впереди угроза ≈ {threatBand.min}–{threatBand.max}.
+            </p>
             <div className="upgrade-columns">
               {state.pendingUpgrade.map((offer) => (
                 <button
@@ -597,7 +778,7 @@ export function CampaignScreen({
               window.scrollTo({ top: 0, behavior: 'auto' })
             }}
           >
-            <span className="ready-abandon-title">Новый забег</span>
+            <span className="ready-abandon-title">Новая вылазка</span>
             <span className="ready-abandon-quote">«{quote}»</span>
           </button>
         )}

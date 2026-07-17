@@ -1,3 +1,15 @@
+import {
+  PARTY_BASE,
+  PARTY_OVERALL_MAX,
+  PARTY_OVERALL_MIN,
+  PARTY_OVR_PIVOT,
+  PARTY_OVR_SCALE,
+  PARTY_SKILL_MAX,
+  PARTY_SKILL_MIN,
+  SPELL_ECO_HARD,
+  SPELL_ECO_SOFT,
+} from './balance'
+import { MECH_QUIRK_BY_TEXT } from '../data/quirks'
 import { SCHOOL_ROLE_AFFINITY, ROLE_STAT_WEIGHTS, SUBCLASS_MAP } from '../data/pools'
 import type {
   AdventurerDef,
@@ -7,14 +19,6 @@ import type {
   SynergyAxes,
 } from './types'
 import { PARTY_SIZE, ROLE_ORDER } from './types'
-
-const BASE_WEIGHT = 0.38
-const ROLE_FIT_WEIGHT = 0.12
-const STAT_FIT_WEIGHT = 0.12
-const SPELL_FIT_WEIGHT = 0.18
-const BOND_WEIGHT = 0.1
-const COVERAGE_WEIGHT = 0.08
-const ANTI_WEIGHT = 0.02
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
@@ -39,15 +43,12 @@ export function spellFitFor(
     fit += SUBCLASS_MAP[adv.subclassId]?.schoolBonus[spell.school] ?? 0
   }
 
-  // Higher tier spells reward more when fitted
   fit += Math.min(3, effectiveLevel * 0.35)
   fit += masteryBonus
 
-  // Economy matters for high-level spells
-  if (effectiveLevel >= 5 && adv.economy < 65) fit -= 1.5
-  if (effectiveLevel >= 7 && adv.economy < 75) fit -= 1
+  if (effectiveLevel >= 5 && adv.economy < SPELL_ECO_SOFT) fit -= 1.5
+  if (effectiveLevel >= 7 && adv.economy < SPELL_ECO_HARD) fit -= 1
 
-  // Лёгкий вес осей спелла под роль (не ломает класс/школу)
   const axis =
     adv.role === 'striker'
       ? spell.pressure
@@ -56,7 +57,7 @@ export function spellFitFor(
         : adv.role === 'support' || adv.role === 'tank'
           ? spell.sustain
           : (spell.pressure + spell.control) / 2
-  fit += (axis - 70) / 40
+  fit += (axis - 72) / 40
 
   return fit
 }
@@ -67,8 +68,7 @@ function statFitFor(adv: AdventurerDef): number {
     (adv.impact / 100) * w.impact +
     (adv.economy / 100) * w.economy +
     (adv.reliability / 100) * w.reliability
-  // Map 0.45–0.95 → roughly -3…+4
-  return clamp((score - 0.68) * 20, -4, 5)
+  return clamp((score - 0.72) * 22, -4, 5)
 }
 
 function coverageScore(roster: AdventurerDef[]): number {
@@ -76,11 +76,11 @@ function coverageScore(roster: AdventurerDef[]): number {
   const counts = new Map(ROLE_ORDER.map((r) => [r, 0]))
   for (const a of roster) counts.set(a.role, (counts.get(a.role) ?? 0) + 1)
   const missing = ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) === 0).length
-  let score = -missing * 2.5
-  if (missing === 0) score += 3
+  let score = -missing * 3.2
+  if (missing === 0) score += 4
   const maxStack = Math.max(...ROLE_ORDER.map((r) => counts.get(r) ?? 0))
-  if (maxStack >= 3) score -= 1.5
-  if (maxStack >= 4) score -= 1.5
+  if (maxStack >= 3) score -= 2
+  if (maxStack >= 4) score -= 2
   return score
 }
 
@@ -93,14 +93,12 @@ function bondScore(roster: AdventurerDef[]): { score: number; top: { names: stri
       const b = roster[j]
       let pair = 0
       if (a.race === b.race) pair += 1.2
-      // Complementary roles
       const roles = new Set([a.role, b.role])
       if (roles.has('tank') && roles.has('support')) pair += 2
       if (roles.has('striker') && roles.has('scout')) pair += 1.5
       if (roles.has('controller') && roles.has('striker')) pair += 1.2
       if (roles.has('tank') && roles.has('striker')) pair += 1
       if (a.role === b.role) pair -= 0.8
-      // Class synergy lite
       if (
         (a.classId === 'cleric' && b.classId === 'paladin') ||
         (a.classId === 'wizard' && b.classId === 'fighter') ||
@@ -125,15 +123,18 @@ function antiSynergyScore(roster: AdventurerDef[], spellSlots: SpellSlotState[])
   if (roster.length === 0) return 0
   let pen = 0
   const avgRel = roster.reduce((s, a) => s + a.reliability, 0) / roster.length
-  if (avgRel < 62) pen -= 3
+  if (avgRel < TAG_GLASS_SOFT) pen -= 3
   const avgEco = roster.reduce((s, a) => s + a.economy, 0) / roster.length
   const heavy = spellSlots.filter((s) => s.effectiveLevel >= 5).length
-  if (heavy >= 3 && avgEco < 68) pen -= 2.5
+  if (heavy >= 3 && avgEco < SPELL_ECO_SOFT) pen -= 2.5
   const badFits = roster.filter((a) => a.roleFit <= -2).length
   if (badFits >= 2) pen -= 2
   if (badFits >= 3) pen -= 2
   return pen
 }
+
+/** Локальный порог «стеклянного» отряда (чуть ниже тега героя). */
+const TAG_GLASS_SOFT = 70
 
 export function autoAssignSpells(
   roster: AdventurerDef[],
@@ -178,6 +179,10 @@ function permutations(arr: number[]): number[][] {
   return result
 }
 
+/**
+ * overall = anchor(mean OVR) + skill(−12…+12).
+ * Навык драфта должен двигать число сильнее, чем «набери максимальный OVR».
+ */
 export function computeSynergy(
   roster: AdventurerDef[],
   spellSlots: SpellSlotState[],
@@ -236,45 +241,68 @@ export function computeSynergy(
   const coverage = coverageScore(roster)
   const anti = antiSynergyScore(roster, spellSlots)
 
-  // Scale axes into roughly comparable contribution points
-  const basePart = base * BASE_WEIGHT * 2.2
-  const rolePart = roleFitAvg * ROLE_FIT_WEIGHT * 8
-  const statPart = statFitAvg * STAT_FIT_WEIGHT * 6
-  const spellPart = spellFitAvg * SPELL_FIT_WEIGHT * 5
-  const bondPart = bond * BOND_WEIGHT * 4
-  const covPart = coverage * COVERAGE_WEIGHT * 6
-  const antiPart = anti * ANTI_WEIGHT * 10
+  let mechBond = 0
+  let mechCoverage = 0
+  let mechAnti = 0
+  let mechSpell = 0
+  let mechRole = 0
+  for (const adv of roster) {
+    const mq = adv.quirk ? MECH_QUIRK_BY_TEXT[adv.quirk] : undefined
+    if (!mq) continue
+    mechBond += mq.bond ?? 0
+    mechCoverage += mq.coverage ?? 0
+    mechAnti += mq.anti ?? 0
+    mechSpell += mq.spellFit ?? 0
+    mechRole += mq.roleFit ?? 0
+  }
 
+  const bondAdj = bond + mechBond
+  const coverageAdj = coverage + mechCoverage
+  const antiAdj = anti + mechAnti
+  const spellFitAdj = spellFitAvg + mechSpell
+  const roleFitAdj = roleFitAvg + mechRole
+
+  const skillRaw =
+    roleFitAdj * 2.8 +
+    clamp(statFitAvg, -4, 5) * 1.0 +
+    (spellFitAdj - 1.5) * 2.8 +
+    bondAdj * 0.9 +
+    coverageAdj * 1.85 +
+    antiAdj * 1.6
+  const skill = clamp(skillRaw, PARTY_SKILL_MIN, PARTY_SKILL_MAX)
+
+  const ovrTerm = (base - PARTY_OVR_PIVOT) * PARTY_OVR_SCALE
   const overall = Math.round(
-    clamp(basePart + rolePart + statPart + spellPart + bondPart + covPart + antiPart, 40, 115),
+    clamp(PARTY_BASE + ovrTerm + skill, PARTY_OVERALL_MIN, PARTY_OVERALL_MAX),
   )
 
   const axes: SynergyAxes = {
     base: Math.round(base),
-    roleFit: Math.round(roleFitAvg * 10) / 10,
+    roleFit: Math.round(roleFitAdj * 10) / 10,
     statFit: Math.round(statFitAvg * 10) / 10,
-    spellFit: Math.round(spellFitAvg * 10) / 10,
-    bondFit: Math.round(bond * 10) / 10,
-    coverage: Math.round(coverage * 10) / 10,
-    antiSynergy: Math.round(anti * 10) / 10,
+    spellFit: Math.round(spellFitAdj * 10) / 10,
+    bondFit: Math.round(bondAdj * 10) / 10,
+    coverage: Math.round(coverageAdj * 10) / 10,
+    antiSynergy: Math.round(antiAdj * 10) / 10,
   }
 
   const reasons: string[] = []
-  if (coverage < 0) reasons.push('дыры в ролях')
-  if (roleFitAvg < 0) reasons.push('слабая посадка ролей')
-  if (spellFitAvg < 1) reasons.push('слабые спеллы')
-  if (bond > 3) reasons.push('сильные связки')
-  if (anti < -2) reasons.push('антисинергия')
+  if (coverageAdj < 0) reasons.push('дыры в ролях')
+  if (roleFitAdj < 0) reasons.push('слабая посадка ролей')
+  if (spellFitAdj < 1) reasons.push('слабые спеллы')
+  if (bondAdj > 3) reasons.push('сильные связки')
+  if (antiAdj < -2) reasons.push('антисинергия')
+  if (mechBond + mechCoverage + mechSpell !== 0) reasons.push('причуды отряда')
 
   return {
     overall,
     base: Math.round(base),
-    spellBonus: Math.round(spellPart * 10) / 10,
-    chemBonus: Math.round(bondPart * 10) / 10,
-    coverageBonus: Math.round(covPart * 10) / 10,
-    roleFitBonus: Math.round(rolePart * 10) / 10,
-    statFitBonus: Math.round(statPart * 10) / 10,
-    antiSynergy: Math.round(antiPart * 10) / 10,
+    spellBonus: Math.round((spellFitAdj - 2) * 2.6 * 10) / 10,
+    chemBonus: Math.round(bondAdj * 0.85 * 10) / 10,
+    coverageBonus: Math.round(coverageAdj * 1.85 * 10) / 10,
+    roleFitBonus: Math.round(roleFitAdj * 2.5 * 10) / 10,
+    statFitBonus: Math.round(statFitAvg * 0.9 * 10) / 10,
+    antiSynergy: Math.round(antiAdj * 1.4 * 10) / 10,
     axes,
     assignment,
     spellLines,
@@ -282,4 +310,3 @@ export function computeSynergy(
     reasons,
   }
 }
-

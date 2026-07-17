@@ -40,7 +40,9 @@ export function PartyColumn({ state, onChange, spellDrag }: PartyColumnProps) {
         />
 
         {spellDrag && (
-          <p className="spell-drag-hint">Спеллы рассажены автоматически — перетащи между героями.</p>
+          <p className="spell-drag-hint">
+            Спеллы можно перетаскивать между героями — посадка меняет силу.
+          </p>
         )}
 
         {modalAdv && <AdventurerModal adventurer={modalAdv} onClose={() => setModalAdv(null)} />}

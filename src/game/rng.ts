@@ -1,7 +1,8 @@
+/** Внутренняя энтропия вылазки — игроку не показывается и не шарится. */
 export function createSeed(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let seed = ''
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 12; i += 1) {
     seed += chars[Math.floor(Math.random() * chars.length)]
   }
   return seed
