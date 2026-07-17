@@ -139,8 +139,3 @@ export const SPELLS: SpellDef[] = [
   spell('s60', 'Предвидение', 9, 'Прорицание', ['wizard', 'bard', 'druid', 'warlock'], ['scout', 'support'],
     'Видит исходы — огромный бонус к броскам.', ['бафф', 'вскрытие'], 64, 70, 92),
 ]
-
-export const SPELL_MAP = Object.fromEntries(SPELLS.map((s) => [s.id, s])) as Record<
-  string,
-  SpellDef
->

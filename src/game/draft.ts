@@ -256,18 +256,6 @@ export function setTeamName(state: RunState, teamName: string): RunState {
   return { ...state, teamName: teamName.trim() || 'Твой отряд' }
 }
 
-export function assignSpell(
-  state: RunState,
-  adventurerId: string,
-  poolIndex: number,
-): RunState {
-  if (poolIndex < 0 || poolIndex >= state.spellSlots.length) return state
-  return {
-    ...state,
-    spellAssign: { ...state.spellAssign, [adventurerId]: poolIndex },
-  }
-}
-
 /** Swap spells between two adventurers (drag-and-drop). */
 export function swapSpells(
   state: RunState,
@@ -419,18 +407,10 @@ export function skipSpellUpgrade(state: RunState): RunState {
  * либо симулируем с текущими слотами и вставляем pending если остановились на апгрейде.
  *
  * Для UI CampaignScreen: сначала resolveRun считает путь до первого апгрейда / конца.
- * Затем игрок выбирает апгрейд и вызывается continueCampaign.
+ * Затем игрок выбирает апгрейд и вызывается afterUpgradeContinue.
  */
 export function resolveRun(state: RunState): RunState {
   return simulateFrom(state, 0, {})
-}
-
-export function continueCampaign(state: RunState): RunState {
-  if (state.result) return state
-  const cleared = state.upgradesTaken * 10
-  // Continue from next stage after last completed chapter boss
-  const startStage = Math.min(cleared, TOTAL_STAGES - 1)
-  return simulateFrom(state, startStage, {})
 }
 
 function simulateFrom(

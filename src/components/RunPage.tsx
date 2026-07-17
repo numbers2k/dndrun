@@ -102,7 +102,7 @@ export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPage
     revealResults && Boolean(state.result) && !state.pendingUpgrade
 
   return (
-    <div className={`run-page ${started ? 'is-started' : ''} ${showResults ? 'has-results' : ''}`}>
+    <div className="run-page">
       <section id="run-draft" className="run-frame run-frame-draft">
         <DraftScreen state={state} onChange={onChange} />
       </section>

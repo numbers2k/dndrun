@@ -37,11 +37,6 @@ export function spellLevelMark(level: number): string {
   return level === 0 ? 'Ф' : String(level)
 }
 
-/** Мелкая подпись под числом / «Фокус». */
-export function spellLevelSub(level: number): string {
-  return level === 0 ? 'заговор' : 'уровень'
-}
-
 export function spellLevelHint(level: number): string {
   return level === 0
     ? 'Заговор (0 уровень) — без слота'

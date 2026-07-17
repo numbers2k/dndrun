@@ -35,20 +35,14 @@
   --ok-soft: rgba(90, 99, 90, 0.12);
   --danger: #8a3535;
   --danger-soft: rgba(138, 53, 53, 0.12);
-  --warn: #7a7a7a;
   --warn-soft: rgba(122, 122, 122, 0.12);
 
-  /* Legacy aliases */
+  /* Alias used across UI */
   --cyan: var(--accent);
-  --coral: var(--danger);
-  --orange: var(--accent);
-  --green: var(--ok);
-  --purple: #3a3a42;
 
   /* —— Numbers —— */
   --num-main: var(--text);
   --num-accent: var(--accent);
-  --num-muted: var(--faint);
 
   /*
    * Rarity — faded grades, not jewels
@@ -64,20 +58,12 @@
   --rarity-legendary-soft: rgba(176, 174, 164, 0.12);
   --rarity-legendary-border: rgba(176, 174, 164, 0.5);
 
-  /* —— Space / radius —— */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
-  --space-6: 2rem;
+  /* —— Radius —— */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --btn-radius: var(--radius-md);
 
-  --glow-soft: rgba(122, 129, 120, 0.12);
-  --fog: rgba(5, 5, 5, 0.78);
   --header-h: 3.35rem;
 
   color: var(--text);
@@ -101,28 +87,6 @@
   color: var(--text);
 }
 
-.t-title {
-  font-size: var(--text-title);
-  font-weight: var(--font-semibold);
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
-.t-body {
-  font-size: var(--text-body);
-  font-weight: var(--font-regular);
-  line-height: 1.45;
-  color: var(--text);
-}
-
-.t-meta {
-  font-size: var(--text-meta);
-  font-weight: var(--font-regular);
-  line-height: 1.35;
-  color: var(--muted);
-}
-
 .t-label {
   font-size: var(--text-meta);
   font-weight: var(--font-semibold);
@@ -130,12 +94,6 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
-}
-
-.t-num {
-  font-weight: var(--font-semibold);
-  font-variant-numeric: tabular-nums;
-  color: var(--num-main);
 }
 
 * {
