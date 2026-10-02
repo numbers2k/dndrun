@@ -105,15 +105,23 @@ function pickQuirk(rng: SeededRng, role: RoleId, tags: string[]): string {
   return rng.pick(QUIRKS_GENERIC)
 }
 
+export interface GenerateOpts {
+  role?: RoleId
+  rarity?: CardRarity
+  /** Учебный пак не бывает проклятым. */
+  allowCursed?: boolean
+}
+
 export function generateAdventurer(
   rng: SeededRng,
   career: CareerState,
   excludeNames: Set<string>,
   idSuffix: string,
+  opts?: GenerateOpts,
 ): AdventurerDef {
   const race = rng.pick(career.unlockedRaces)
   const classId = rng.pick(career.unlockedClasses)
-  const role = pickRole(rng, classId)
+  const role = opts?.role ?? pickRole(rng, classId)
 
   const subclassPool = career.unlockedSubclasses
     .map((id) => SUBCLASS_MAP[id])
@@ -122,7 +130,7 @@ export function generateAdventurer(
     subclassPool.length > 0 && rng.next() < 0.45 ? rng.pick(subclassPool).id : undefined
 
   const roleFit = computeRoleFit(classId, role, race, subclassId)
-  const rarity = rollHeroRarity(rng)
+  const rarity = opts?.rarity ?? rollHeroRarity(rng)
   const band = HERO_RARITY_BANDS[rarity]
   const weights = ROLE_STAT_WEIGHTS[role]
 
@@ -143,11 +151,14 @@ export function generateAdventurer(
   reliability = clamp(reliability + shift, band.axisMin, band.axisMax)
 
   const rawOvr = Math.round(impact * 0.4 + economy * 0.3 + reliability * 0.3)
-  const ovr = clamp(rawOvr, band.ovrMin, band.ovrMax)
+  let ovr = clamp(rawOvr, band.ovrMin, band.ovrMax)
+  const cursed = opts?.allowCursed !== false && opts?.rarity === undefined && rng.next() < 0.08
+  if (cursed) ovr = clamp(ovr - 6, 52, ovr)
 
   const name = uniqueName(rng, excludeNames)
   excludeNames.add(name.toLowerCase())
   const tags = buildTags(role, impact, economy, reliability, roleFit)
+  if (cursed) tags.unshift('проклятие')
 
   return {
     id: `adv-${idSuffix}`,
@@ -161,9 +172,10 @@ export function generateAdventurer(
     economy,
     reliability,
     roleFit,
-    tags,
+    tags: tags.slice(0, 2),
     rarity,
-    quirk: pickQuirk(rng, role, tags),
+    quirk: cursed ? 'Проклятие пира: слабее, но оставляет пепел.' : pickQuirk(rng, role, tags),
+    cursed,
   }
 }
 

@@ -75,9 +75,12 @@ function coverageScore(roster: AdventurerDef[]): number {
   if (roster.length === 0) return 0
   const counts = new Map(ROLE_ORDER.map((r) => [r, 0]))
   for (const a of roster) counts.set(a.role, (counts.get(a.role) ?? 0) + 1)
-  const missing = ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) === 0).length
+  const present = ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) > 0).length
+  // Штраф только за повтор роли, которую уже могли не брать. Пустые места будущего отряда не режут силу.
+  const expected = Math.min(ROLE_ORDER.length, roster.length)
+  const missing = Math.max(0, expected - present)
   let score = -missing * 3.2
-  if (missing === 0) score += 4
+  if (present === ROLE_ORDER.length) score += 4
   const maxStack = Math.max(...ROLE_ORDER.map((r) => counts.get(r) ?? 0))
   if (maxStack >= 3) score -= 2
   if (maxStack >= 4) score -= 2
@@ -235,7 +238,12 @@ export function computeSynergy(
     spellRaw += fit
     spellLines.push({ adventurerId: adv.id, spellId: slot.spell.id, fit: Math.round(fit * 10) / 10 })
   }
-  const spellFitAvg = roster.length ? spellRaw / roster.length : 0
+  const armed = roster.filter((adv) => {
+    const idx = assignment[adv.id]
+    return idx !== null && idx !== undefined && Boolean(spellSlots[idx])
+  }).length
+  // Пустые руки ещё не предложенного заклинания не размывают тех, у кого оно уже село.
+  const spellFitAvg = armed > 0 ? spellRaw / armed : 1.5
 
   const { score: bond, top: chemTop } = bondScore(roster)
   const coverage = coverageScore(roster)
@@ -287,11 +295,11 @@ export function computeSynergy(
   }
 
   const reasons: string[] = []
-  if (coverageAdj < 0) reasons.push('дыры в ролях')
-  if (roleFitAdj < 0) reasons.push('слабая посадка ролей')
-  if (spellFitAdj < 1) reasons.push('слабые спеллы')
+  if (coverageAdj < 0) reasons.push('одни и те же роли')
+  if (roleFitAdj < 0) reasons.push('герои не на своих местах')
+  if (spellFitAdj < 1) reasons.push('заклинания плохо сидят')
   if (bondAdj > 3) reasons.push('сильные связки')
-  if (antiAdj < -2) reasons.push('антисинергия')
+  if (antiAdj < -2) reasons.push('отряд мешает сам себе')
   if (mechBond + mechCoverage + mechSpell !== 0) reasons.push('причуды отряда')
 
   return {

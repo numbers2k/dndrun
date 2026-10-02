@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { resolveRun, setTeamName } from '../game/draft'
 import type { RunState } from '../game/types'
 import { CampaignScreen } from './CampaignScreen'
+import { ChapterScreen } from './ChapterScreen'
 import { DraftScreen } from './DraftScreen'
 import { ResultSummary } from './ResultSummary'
 
@@ -52,7 +53,9 @@ function animatePageToFrame(el: HTMLElement, duration = PAGE_SCROLL_MS): Promise
 }
 
 export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPageProps) {
-  const started = state.screen === 'campaign'
+  const chapterMode =
+    state.beat === 'starter' || state.beat === 'march' || state.beat === 'camp' || state.beat === 'done'
+  const started = chapterMode || state.screen === 'campaign'
   const [revealResults, setRevealResults] = useState(false)
   /** Кадр похода на месте под шапкой — можно начинать rewind / прогон. */
   const [campaignFrameReady, setCampaignFrameReady] = useState(false)
@@ -61,12 +64,10 @@ export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPage
   const scrolledToCampaign = useRef(false)
 
   useEffect(() => {
-    if (!started) {
-      setRevealResults(false)
-      setCampaignFrameReady(false)
-      scrolledToCampaign.current = false
-    }
-  }, [started, state.seed])
+    setRevealResults(false)
+    setCampaignFrameReady(false)
+    scrolledToCampaign.current = false
+  }, [state.seed])
 
   useEffect(() => {
     if (!started || scrolledToCampaign.current) return
@@ -86,7 +87,7 @@ export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPage
       cancelled = true
       window.clearTimeout(id)
     }
-  }, [started])
+  }, [started, state.seed])
 
   useEffect(() => {
     if (!revealResults) return
@@ -103,13 +104,16 @@ export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPage
     Boolean(state.result) &&
     !state.pendingUpgrade &&
     !state.pendingCamp &&
-    !state.pendingRoute
+    !state.pendingRoute &&
+    !state.pendingEvent
 
   return (
     <div className="run-page">
-      <section id="run-draft" className="run-frame run-frame-draft">
-        <DraftScreen state={state} onChange={onChange} />
-      </section>
+      {!chapterMode && (
+        <section id="run-draft" className="run-frame run-frame-draft">
+          <DraftScreen state={state} onChange={onChange} />
+        </section>
+      )}
 
       {started && (
         <section
@@ -117,15 +121,25 @@ export function RunPage({ state, onChange, onAbandon, onAgain, onMenu }: RunPage
           ref={campaignRef}
           className="run-frame run-frame-campaign"
         >
-          <CampaignScreen
-            state={state}
-            onChange={onChange}
-            onRename={(name) => onChange(setTeamName(state, name))}
-            onFinished={() => onChange(resolveRun(state))}
-            onAbandon={onAbandon}
-            onRevealResults={() => setRevealResults(true)}
-            frameReady={campaignFrameReady}
-          />
+          {chapterMode ? (
+            <ChapterScreen
+              state={state}
+              onChange={onChange}
+              onFinished={() => onChange(resolveRun(state))}
+              onAbandon={onAbandon}
+              onRevealResults={() => setRevealResults(true)}
+            />
+          ) : (
+            <CampaignScreen
+              state={state}
+              onChange={onChange}
+              onRename={(name) => onChange(setTeamName(state, name))}
+              onFinished={() => onChange(resolveRun(state))}
+              onAbandon={onAbandon}
+              onRevealResults={() => setRevealResults(true)}
+              frameReady={campaignFrameReady}
+            />
+          )}
         </section>
       )}
 

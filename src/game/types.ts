@@ -50,6 +50,8 @@ export interface AdventurerDef {
   rarity: CardRarity
   /** Короткая причуда / изъян (1 строка). */
   quirk?: string
+  /** Слабее, но даёт пепел гильдии при выборе. */
+  cursed?: boolean
 }
 
 /** Модификаторы похода от лагерных выборов и сложности. */
@@ -74,6 +76,9 @@ export interface CampOffer {
   threatAdjust: number
   ovrBuffer: number
   durationStages: number
+  /** Роли, которые этот край спрашивает до клика. */
+  needRoles?: RoleId[]
+  needLabels?: string[]
 }
 
 /** Микрорешение маршрута главы (без combat RNG). */
@@ -197,6 +202,18 @@ export interface RunConfig {
   rerolls: number
 }
 
+/** legacy — старый драфт 5+5. Остальное — главы с набором внутри. */
+export type RunBeat = 'legacy' | 'starter' | 'march' | 'camp' | 'done'
+
+/** Событие края в лагере: пепел или запас, не бой. */
+export interface RegionEventOffer {
+  id: string
+  label: string
+  detail: string
+  ash?: number
+  ovrBuffer?: number
+}
+
 export interface RunState {
   screen: Screen
   seed: string
@@ -230,6 +247,13 @@ export interface RunState {
   upgradesTaken: number
   /** Драфт 5+5 собран — ждём старт или отказ, пак ещё виден. */
   pendingCommit: boolean
+  /** Новый цикл глав. Нет поля — старый сейв. */
+  beat?: RunBeat
+  /** Лагерь ещё не засчитан как пройденная глава. */
+  campTick?: boolean
+  pendingEvent?: RegionEventOffer[] | null
+  /** В этом лагере уже взяли одну находку. */
+  recruitPicked?: boolean
   history: {
     seed: string
     record: string

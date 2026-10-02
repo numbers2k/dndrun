@@ -170,7 +170,7 @@ function stageReasons(
     for (const r of score.reasons) {
       if (r === 'сильные связки' && out.length < 3) out.push(r)
     }
-    if (score.axes.spellFit >= 2 && out.length < 3) out.push('спеллы держат темп')
+    if (score.axes.spellFit >= 2 && out.length < 3) out.push('заклинания держат темп')
     if (score.axes.coverage >= 0 && out.length < 3) out.push('роли закрыты')
   } else {
     out.push(threat)

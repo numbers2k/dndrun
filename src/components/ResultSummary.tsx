@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { CLASS_LABEL } from '../data/labels'
 import { buildRunAutopsy } from '../game/autopsy'
 import { getSaveById, loadCareer } from '../game/career'
-import { feastPlaceLabel, TOTAL_STAGES } from '../game/simulate'
+import { clearedChapters, failChapter } from '../game/causality'
+import { shareRunLine } from '../game/meta'
+import { TOTAL_STAGES } from '../game/simulate'
 import { rosterFromParty } from '../game/scoring'
 import type { RunState } from '../game/types'
 import { ROLE_LABEL_FULL } from '../game/types'
@@ -29,12 +31,16 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
     () => (result ? buildRunAutopsy(result, result.score) : null),
     [result],
   )
+  const [copied, setCopied] = useState(false)
 
   if (!result || !autopsy) return null
-
-  const failedStageNum = result.perfect
+  const failedChapter = result.perfect
     ? null
-    : Math.min(result.stagesCleared + 1, TOTAL_STAGES)
+    : failChapter(Math.min(result.stagesCleared, TOTAL_STAGES))
+  const share = shareRunLine(
+    clearedChapters(result.stagesCleared, result.perfect),
+    result.perfect,
+  )
 
   const deepRuns = history.filter((x) => (x.stages ?? 0) >= 30).length
 
@@ -44,14 +50,20 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
         <header className="result-summary-head">
           <p className="result-eyebrow t-label">Итог вылазки · {state.teamName}</p>
           <h2 className="result-place t-hero">
-            {result.perfect
-              ? 'Пир оборван'
-              : `Провал на этапе ${failedStageNum}/${TOTAL_STAGES}`}
+            {result.perfect ? 'Пир оборван' : `Провал на главе ${failedChapter}`}
           </h2>
           <p className="result-field-line">
-            Среди обречённых — {autopsy.placeLabel} · {autopsy.record} · дальше всех ушёл:{' '}
-            {autopsy.championName}
+            Сила {result.score.overall}. Слабее всего — {autopsy.weakest.label.toLowerCase()}.
           </p>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              void navigator.clipboard?.writeText(share).then(() => setCopied(true))
+            }}
+          >
+            {copied ? 'Скопировано' : share}
+          </button>
         </header>
 
         {!result.perfect && (
@@ -63,7 +75,7 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
               </p>
             )}
             <p className="result-autopsy-weak">
-              Слабая ось: <strong>{autopsy.weakest.label}</strong> ({autopsy.weakest.value})
+              Слабое место: <strong>{autopsy.weakest.label}</strong>
             </p>
             <p className="result-autopsy-tip">
               <strong>Что пробовать:</strong> {autopsy.tip}
@@ -113,26 +125,6 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
 
             <div className="result-scoreline">
               <div>
-                <span>База</span>
-                <strong>{result.score.axes.base}</strong>
-              </div>
-              <div>
-                <span>Посадка</span>
-                <strong>{result.score.axes.roleFit}</strong>
-              </div>
-              <div>
-                <span>Спеллы</span>
-                <strong className="syn">{result.score.axes.spellFit}</strong>
-              </div>
-              <div>
-                <span>Связки</span>
-                <strong className="chem">{result.score.axes.bondFit}</strong>
-              </div>
-              <div>
-                <span>Роли</span>
-                <strong>{result.score.axes.coverage}</strong>
-              </div>
-              <div>
                 <span>Сила</span>
                 <strong className="ovr">{result.score.overall}</strong>
               </div>
@@ -146,7 +138,7 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
 
             <div className="result-actions-row">
               <button type="button" className="btn btn-primary" onClick={onAgain}>
-                Новая вылазка
+                Снова в путь
               </button>
               <button type="button" className="btn btn-secondary" onClick={onMenu}>
                 В гильдию
@@ -176,10 +168,7 @@ export function ResultSummary({ state, onAgain, onMenu }: ResultSummaryProps) {
               {history.slice(0, 9).map((h) => (
                 <li key={`${h.date}-${h.ovr}`}>
                   <strong>{h.stages ?? '?'} эт.</strong>
-                  <span>
-                    сила {h.ovr}
-                    {h.place ? ` · ${feastPlaceLabel(h.place)}` : ''}
-                  </span>
+                  <span>сила {h.ovr}</span>
                 </li>
               ))}
             </ul>

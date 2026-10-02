@@ -27,11 +27,23 @@ function writeStore(store: RunStore): void {
 /** Драфт или пауза похода (лагерь / маршрут / апгрейд) — можно продолжить. */
 export function isResumableRun(state: RunState | null | undefined): boolean {
   if (!state?.activeSaveId) return false
+  if (state.beat === 'done') return false
+  if (state.beat === 'starter' || state.beat === 'camp') return true
+  if (state.beat === 'march') return !state.result
   if (state.screen === 'draft') return true
   if (state.screen !== 'campaign') return false
-  if (state.pendingCamp || state.pendingUpgrade || state.pendingRoute) return true
+  if (state.pendingCamp || state.pendingUpgrade || state.pendingRoute || state.pendingEvent) return true
   if (!state.result) return true
   return false
+}
+
+function migrateBeat(raw: RunState): RunState['beat'] {
+  if (raw.beat) return raw.beat
+  if (raw.pendingCamp || raw.pendingUpgrade || raw.pendingRoute) return 'camp'
+  if (raw.screen === 'draft') return 'legacy'
+  if (raw.screen === 'campaign' && !raw.result) return 'march'
+  if (raw.screen === 'campaign' && raw.result) return 'done'
+  return 'legacy'
 }
 
 /** Совместимость старых пауз в localStorage. */
@@ -41,6 +53,7 @@ function migrateRunState(raw: RunState): RunState {
     pendingRoute: raw.pendingRoute ?? null,
     pendingCamp: raw.pendingCamp ?? null,
     pendingUpgrade: raw.pendingUpgrade ?? null,
+    pendingEvent: raw.pendingEvent ?? null,
     campaignMods: raw.campaignMods ?? { ...DEFAULT_CAMPAIGN_MODS },
     difficultyThreat: raw.difficultyThreat ?? 0,
     runPath: raw.runPath ?? defaultRunPath(),
@@ -49,6 +62,9 @@ function migrateRunState(raw: RunState): RunState {
     spellSlots: raw.spellSlots ?? [],
     spellAssign: raw.spellAssign ?? {},
     history: raw.history ?? [],
+    beat: migrateBeat(raw),
+    campTick: raw.campTick ?? false,
+    recruitPicked: raw.recruitPicked ?? false,
   }
 }
 

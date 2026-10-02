@@ -1,3 +1,4 @@
+import { failChapter } from './causality'
 import type { ClassId, RaceId } from './types'
 import {
   ALL_CLASSES,
@@ -42,6 +43,22 @@ export interface CareerState {
   unlockedRegions: RegionId[]
   /** Трофеи-вехи (ключи). */
   trophies: string[]
+  /** Пепел пира — тратится на двери и переброс, не на силу. */
+  ash: number
+  /** Чертежи заклинаний: чаще приходят в находках. */
+  blueprints: string[]
+  heardRumors: string[]
+  /** Сколько вылазок уже выдали слух. */
+  rumorsSeenCount: number
+  lastRumor: string
+  lastChapter: number
+  lastPerfect: boolean
+  lastHadTank: boolean
+  prophecyDone: string[]
+  /** Печати после первой победы: +угроза. */
+  seals: number
+  /** Купленные перебросы, сгорают на старте вылазки. */
+  bonusRerolls: number
 }
 
 export interface CareerSave {
@@ -106,6 +123,17 @@ export function defaultCareer(): CareerState {
     seenRegions: [INTRO_REGION_ID],
     unlockedRegions: [...STARTER_MID_REGIONS],
     trophies: [],
+    ash: 0,
+    blueprints: [],
+    heardRumors: [],
+    rumorsSeenCount: 0,
+    lastRumor: '',
+    lastChapter: 0,
+    lastPerfect: false,
+    lastHadTank: false,
+    prophecyDone: [],
+    seals: 0,
+    bonusRerolls: 0,
   }
 }
 
@@ -137,6 +165,17 @@ function normalizeCareer(raw: Partial<CareerState> | undefined): CareerState {
       ]),
     ],
     trophies: raw.trophies ?? [],
+    ash: raw.ash ?? 0,
+    blueprints: raw.blueprints ?? [],
+    heardRumors: raw.heardRumors ?? [],
+    rumorsSeenCount: raw.rumorsSeenCount ?? 0,
+    lastRumor: raw.lastRumor ?? '',
+    lastChapter: raw.lastChapter ?? 0,
+    lastPerfect: raw.lastPerfect ?? false,
+    lastHadTank: raw.lastHadTank ?? false,
+    prophecyDone: raw.prophecyDone ?? [],
+    seals: raw.seals ?? 0,
+    bonusRerolls: raw.bonusRerolls ?? 0,
   }
 }
 
@@ -434,6 +473,9 @@ export function applyCareerProgress(
     totalStages: career.totalStages + Math.max(0, stagesCleared),
     bestStage: Math.max(career.bestStage, stagesCleared),
     crowns: career.crowns + (perfect ? 1 : 0),
+    ash: (career.ash ?? 0) + Math.max(1, Math.floor(stagesCleared / 10)),
+    lastChapter: perfect ? 10 : failChapter(stagesCleared),
+    lastPerfect: perfect,
   }
 
   const unlocks: string[] = []
@@ -443,26 +485,26 @@ export function applyCareerProgress(
     if (best < u.stage) continue
     if (u.kind === 'race' && !next.unlockedRaces.includes(u.id as RaceId)) {
       next.unlockedRaces.push(u.id as RaceId)
-      unlocks.push('Новая раса в пуле гильдии')
+      unlocks.push(u.label)
     }
     if (u.kind === 'class' && !next.unlockedClasses.includes(u.id as ClassId)) {
       next.unlockedClasses.push(u.id as ClassId)
-      unlocks.push('Новый класс в пуле гильдии')
+      unlocks.push(u.label)
     }
     if (u.kind === 'subclass' && !next.unlockedSubclasses.includes(u.id as SubclassId)) {
       next.unlockedSubclasses.push(u.id as SubclassId)
-      unlocks.push('Новый подкласс в пуле гильдии')
+      unlocks.push(u.label)
     }
     if (u.kind === 'tier') {
       const tier = Number(u.id)
       if (tier > next.maxSpellTier) {
         next.maxSpellTier = tier
-        unlocks.push('Расширен тир заклинаний')
+        unlocks.push(u.label)
       }
     }
     if (u.kind === 'school' && !next.unlockedSchools.includes(u.id)) {
       next.unlockedSchools.push(u.id)
-      unlocks.push('Новая школа магии в пуле')
+      unlocks.push(u.label)
     }
   }
 
@@ -498,7 +540,7 @@ export function applyCareerProgress(
     if (best < ru.stage) continue
     if (!next.unlockedRegions.includes(ru.id) && MID_REGION_IDS.includes(ru.id)) {
       next.unlockedRegions.push(ru.id)
-      unlocks.push('Новая дверь Порчи')
+      unlocks.push(ru.label)
     }
   }
 
@@ -531,7 +573,16 @@ export function nextUnlockHint(career: CareerState): string {
     if (u.kind === 'school') return !career.unlockedSchools.includes(u.id)
     return false
   })
-  if (!pending) return 'Все основные анлоки открыты.'
-  const need = pending.stage - best
-  return `Ещё ${need} эт. до нового открытия гильдии`
+  const door = REGION_UNLOCK_TABLE.find(
+    (ru) => best < ru.stage && !career.unlockedRegions.includes(ru.id),
+  )
+  const options = [
+    pending ? { stage: pending.stage, label: pending.label } : null,
+    door ? { stage: door.stage, label: door.label } : null,
+  ].filter((x): x is { stage: number; label: string } => x !== null)
+  options.sort((a, b) => a.stage - b.stage)
+  const next = options[0]
+  if (!next) return 'Все основные открытия гильдии уже у вас.'
+  const chaptersLeft = Math.max(1, Math.ceil((next.stage - best) / 10))
+  return `Ещё ${chaptersLeft} гл. — ${next.label}`
 }

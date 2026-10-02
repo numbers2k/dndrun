@@ -73,15 +73,14 @@
   padding: 1.25rem;
 }
 
-/* Важнее обычного .modal-card (640px) — реально 80% ширины окна */
 .modal-card.howto-card {
-  width: 80vw;
-  max-width: none;
-  max-height: min(88vh, 920px);
+  width: min(36rem, 94vw);
+  max-width: 36rem;
+  max-height: min(80vh, 640px);
   display: flex;
   flex-direction: column;
-  padding: 1.35rem 1.75rem 1.25rem;
-  overflow: hidden;
+  padding: 1.25rem 1.35rem;
+  overflow: auto;
   box-sizing: border-box;
 }
 
@@ -99,37 +98,6 @@
   font-size: var(--text-body);
   line-height: 1.45;
   color: var(--muted);
-}
-
-.howto-body {
-  min-height: 0;
-  overflow: auto;
-  flex: 1;
-  padding-right: 0.25rem;
-}
-
-/* Одна сетка 3×2: низ выровнен по верху, справа внизу пусто */
-.howto-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.5rem 2rem;
-}
-
-.modal-card.howto-card section {
-  margin-top: 0;
-}
-
-.modal-card.howto-card h3 {
-  margin: 0 0 0.5rem;
-  font-size: var(--text-meta);
-  letter-spacing: 0.1em;
-}
-
-.modal-card.howto-card p {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: var(--text-body);
-  line-height: 1.5;
 }
 
 .howto-list {
@@ -151,15 +119,9 @@
   justify-content: flex-end;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .modal-card.howto-card {
-    width: 94vw;
-    max-height: min(92vh, 960px);
-  }
-
-  .howto-grid {
-    grid-template-columns: 1fr;
-    gap: 1.1rem;
+    width: min(36rem, 94vw);
   }
 }
 
@@ -797,13 +759,12 @@
 }
 
 .pack-row.five {
-  --pack-gap: clamp(0.28rem, 0.7cqi, 0.5rem);
-  --pack-card-max: 7.75rem;
+  --pack-gap: 0.55rem;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
   gap: var(--pack-gap);
   align-items: stretch;
-  width: min(100%, calc(5 * var(--pack-card-max) + 4 * var(--pack-gap)));
+  width: min(100%, 46rem);
   margin-inline: auto;
   perspective: 1400px;
   transform-style: preserve-3d;
@@ -920,13 +881,13 @@
 }
 
 .player-card.compact .big-rating {
-  font-size: var(--text-title);
+  font-size: 1.15rem;
   font-weight: var(--font-semibold);
   font-variant-numeric: tabular-nums;
-  right: 0.18rem;
-  bottom: 0.08rem;
-  color: rgba(198, 198, 198, 0.08);
-  z-index: 0;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  color: var(--text);
+  z-index: 1;
 }
 
 /* Spell pack cards have no OVR watermark — full width for stats */
@@ -1388,10 +1349,10 @@
   position: absolute;
   right: 0.4rem;
   bottom: 0.2rem;
-  z-index: 0;
+  z-index: 1;
   font-size: var(--text-title);
   font-weight: var(--font-semibold);
-  color: rgba(198, 198, 198, 0.08);
+  color: var(--text);
   line-height: 1;
   pointer-events: none;
 }
@@ -1558,8 +1519,8 @@
   }
 
   .pack-row.five {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.35rem;
+    grid-template-columns: repeat(auto-fit, minmax(8.75rem, 1fr));
+    width: 100%;
   }
 }
 
@@ -2445,3 +2406,185 @@
     grid-template-columns: 1fr;
   }
 }
+
+.player-verb {
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: 1.3;
+}
+
+.card-flag {
+  font-size: var(--text-meta);
+  color: var(--gold, #d7b56d);
+}
+
+.card-more {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 2;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  padding: 0.1rem 0.25rem;
+  cursor: pointer;
+}
+
+.player-card.is-teach {
+  outline: 1px solid var(--gold, #d7b56d);
+}
+
+.player-card.is-disabled {
+  opacity: 0.55;
+}
+
+.player-card.pickable {
+  cursor: pointer;
+}
+
+.power-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.6rem;
+}
+
+.power-hero strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.power-hero em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.party-roster {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+}
+
+.party-roster li {
+  display: grid;
+  grid-template-columns: 5.2rem 1fr auto;
+  gap: 0.35rem;
+  align-items: baseline;
+}
+
+.party-roster strong {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+
+.party-roster em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
+.party-roster li.party-roster-empty {
+  display: block;
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.camp-warn {
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--gold, #d7b56d);
+  border-radius: var(--radius-lg);
+  line-height: 1.4;
+}
+
+.cause-strip {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cause-strip li {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.cause-strip .neg {
+  color: #d07a7a;
+}
+
+.cause-strip .pos {
+  color: #8fbf8f;
+}
+
+.camp-block {
+  margin-top: 0.8rem;
+}
+
+.camp-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.camp-choices .cfg-card {
+  flex: 1 1 12rem;
+  text-align: left;
+}
+
+.chapter-actions,
+.menu-quick,
+.shelf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.chapter-wait,
+.chapter-place {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.journal-shelf {
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  max-width: 42rem;
+}
+
+.shelf-rumor,
+.shelf-next,
+.shelf-ash,
+.shelf-note {
+  margin: 0.25rem 0;
+}
+
+.shelf-list {
+  margin: 0.6rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-dim);
+  font-size: var(--text-meta);
+}
+
+.shelf-list li + li {
+  margin-top: 0.25rem;
+}
+

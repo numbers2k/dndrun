@@ -1,10 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import {
-  CLASS_LABEL,
-  RACE_LABEL,
-  spellLevelHint,
-  spellLevelLabel,
-} from '../data/labels'
 import { getSaveById, loadCareer } from '../game/career'
 import {
   canPickAdventurer,
@@ -17,12 +11,14 @@ import {
 } from '../game/draft'
 import { createSeed } from '../game/rng'
 import { chapterThreatBand } from '../game/simulate'
-import { computeScore, partyCount, rosterFromParty } from '../game/scoring'
+import { computeScore, rosterFromParty } from '../game/scoring'
 import type { AdventurerDef, CurrentPack, RunState, SpellDef } from '../game/types'
-import { PARTY_SIZE, ROLE_LABEL_FULL } from '../game/types'
+import { PARTY_SIZE } from '../game/types'
+import { heroHint, spellHint } from '../game/verbs'
 import { DraftAdventurerModal } from './DraftAdventurerModal'
 import { DraftSpellModal } from './DraftSpellModal'
 import { PartyColumn } from './PartyColumn'
+import { HeroPickCard, SpellPickCard } from './PickCards'
 
 interface DraftScreenProps {
   state: RunState
@@ -108,7 +104,7 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
     [state.activeSaveId],
   )
 
-  const heroesCount = partyCount(state.party)
+  const roster = rosterFromParty(state.party)
   const spellsCount = state.spellPool.length
   const flipping = flipPhase === 'flipping'
   const shown = displayPack
@@ -143,7 +139,7 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
               <div>
                 <h2>{state.teamName}</h2>
                 <p className="pack-meta">
-                  Герои {heroesCount}/{PARTY_SIZE} · Заклинания {spellsCount}/{PARTY_SIZE}
+                  Герои {roster.length}/{PARTY_SIZE} · Заклинания {spellsCount}/{PARTY_SIZE}
                   {awaitingStart || inCampaign ? ' · Отряд собран' : ''}
                 </p>
               </div>
@@ -166,33 +162,13 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
                     className={shellClass(flipping)}
                     style={shellStyle(flipping)}
                   >
-                    <button
-                      type="button"
-                      className={`player-card pickable compact rarity-${adv.rarity}`}
+                    <HeroPickCard
+                      adventurer={adv}
+                      hint={heroHint(adv, roster, [])}
                       disabled={!canPickAdventurer(state, adv) || flipping}
-                      onClick={() => setPick({ kind: 'adventurer', adventurer: adv })}
-                    >
-                      <span className="role-badge">{ROLE_LABEL_FULL[adv.role]}</span>
-                      <strong className="player-name">{adv.name}</strong>
-                      <span className="player-sub player-sub-stack">
-                        <span>{RACE_LABEL[adv.race]}</span>
-                        <span>{CLASS_LABEL[adv.classId]}</span>
-                      </span>
-                      <div className="mini-stats">
-                        <span>
-                          <em>УДР</em> {adv.impact}
-                        </span>
-                        <span>
-                          <em>РЕС</em> {adv.economy}
-                        </span>
-                        <span>
-                          <em>НАД</em> {adv.reliability}
-                        </span>
-                      </div>
-                      <span className="big-rating" aria-hidden="true">
-                        {adv.ovr}
-                      </span>
-                    </button>
+                      onPick={() => onChange(pickAdventurer(state, adv))}
+                      onDetails={() => setPick({ kind: 'adventurer', adventurer: adv })}
+                    />
                   </div>
                 )
               })}
@@ -207,28 +183,13 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
                     className={shellClass(flipping)}
                     style={shellStyle(flipping)}
                   >
-                    <button
-                      type="button"
-                      className={`player-card pickable compact is-spell rarity-${spell.rarity}`}
+                    <SpellPickCard
+                      spell={spell}
+                      hint={spellHint(spell, roster, [])}
                       disabled={!canPickSpell(state, spell) || flipping}
-                      onClick={() => setPick({ kind: 'spell', spell })}
-                      title={spellLevelHint(spell.level)}
-                    >
-                      <span className="role-badge">{spellLevelLabel(spell.level)}</span>
-                      <strong className="player-name">{spell.name}</strong>
-                      <span className="player-sub">{spell.school}</span>
-                      <div className="mini-stats">
-                        <span>
-                          <em>ДАВ</em> {spell.pressure}
-                        </span>
-                        <span>
-                          <em>КОН</em> {spell.control}
-                        </span>
-                        <span>
-                          <em>ПОД</em> {spell.sustain}
-                        </span>
-                      </div>
-                    </button>
+                      onPick={() => onChange(pickSpell(state, spell))}
+                      onDetails={() => setPick({ kind: 'spell', spell })}
+                    />
                   </div>
                 )
               })}
@@ -274,33 +235,10 @@ export function DraftScreen({ state, onChange }: DraftScreenProps) {
           {!inCampaign ? (
             <div className="help-box">
               <p>
-                <strong>Кликни карту</strong> — откроются подробности. В отряд или пул заклинаний карта
-                попадёт только после твоего подтверждения.
+                <strong>Клик</strong> берёт карту. «ещё» — подробности. Из набора одно: герой или
+                заклинание.
               </p>
-              <ul className="help-glossary">
-                <li>
-                  <strong>База</strong> — средний личный рейтинг героев. Основа силы отряда.
-                </li>
-                <li>
-                  <strong>Посадка</strong> — насколько роли сидят на классе и расе. Слабая посадка режет
-                  вклад героя.
-                </li>
-                <li>
-                  <strong>Статы</strong> — удар, ресурс и надёжность под роль: ударник любит давление,
-                  поддержка — ресурс и стабильность.
-                </li>
-                <li>
-                  <strong>Спеллы</strong> — насколько пул и авторассадка подходят классам и ролям отряда.
-                </li>
-                <li>
-                  <strong>Связки</strong> — бонусы за сочетания героев друг с другом.
-                </li>
-                <li>
-                  <strong>Роли</strong> — покрытие пяти ролей. Дыры ослабляют отряд, моносостав всё ещё
-                  возможен.
-                </li>
-              </ul>
-              <p className="help-note">Из набора берёшь только одно: героя или заклинание.</p>
+              <p className="help-note">Редкость — потолок, не приказ брать золото.</p>
             </div>
           ) : null}
         </section>

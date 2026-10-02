@@ -57,6 +57,22 @@ export const MECH_QUIRKS: MechQuirk[] = [
     text: 'Эхо тоста: слышит связки раньше слов.',
     bond: 1.0,
   },
+  {
+    id: 'mech-salt-step',
+    text: 'Соляной шаг: видит засаду на полглавы раньше.',
+    coverage: 0.7,
+  },
+  {
+    id: 'mech-cup-mender',
+    text: 'Чинит кубки: чужое заклинание садится легче.',
+    spellFit: 0.8,
+  },
+  {
+    id: 'mech-feast-debt',
+    text: 'Долг пира: слабее в строю, но гильдия помнит.',
+    anti: 0.6,
+    bond: -0.4,
+  },
 ]
 
 export const MECH_QUIRK_BY_TEXT = Object.fromEntries(

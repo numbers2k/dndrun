@@ -52,8 +52,14 @@ export function SaveHubModal({
 
           <div className="save-hub-stats">
             <p>
-              Лучший этап: <strong>{career.bestStage}</strong>/100 · вылазок {career.runs} · пиров
-              оборвано {career.crowns}
+              Дальше всего:{' '}
+              <strong>
+                {career.bestStage > 0
+                  ? `глава ${Math.min(10, Math.ceil(career.bestStage / 10))}`
+                  : 'ещё не ходили'}
+              </strong>
+              {' · '}вылазок {career.runs}
+              {career.crowns > 0 ? ` · пиров оборвано ${career.crowns}` : ''}
             </p>
             <p className="career-hint">{nextUnlockHint(career)}</p>
             {save.lastTip && <p className="career-last-tip">{save.lastTip}</p>}
@@ -62,14 +68,6 @@ export function SaveHubModal({
                 Трофеи: {trophies.join(' · ')}
               </p>
             )}
-            <p className="career-meta">
-              В журнале: рас {career.seenRaces.length} · классов {career.seenClasses.length} ·
-              подклассов {career.seenSubclasses.length} · спеллов {career.seenSpellIds.length} ·
-              краёв {(career.seenRegions ?? []).length}
-            </p>
-            <p className="career-meta">
-              Пул гильдии: тир 0–{career.maxSpellTier} · школ {career.unlockedSchools.length}
-            </p>
             {paused && (
               <p className="career-hint">
                 Есть незавершённая вылазка — можно продолжить или бросить.

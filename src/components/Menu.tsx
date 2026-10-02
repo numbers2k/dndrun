@@ -6,16 +6,16 @@ import {
   nextUnlockHint,
   trophyLabels,
   type CareerSave,
-  type DifficultyRerolls,
   type SlotIndex,
 } from '../game/career'
 import { hasRunState } from '../game/runSave'
 import type { RunState } from '../game/types'
-import { CreateSaveModal } from './CreateSaveModal'
+import { JournalShelf } from './JournalShelf'
 import { SaveHubModal } from './SaveHubModal'
 
 interface MenuProps {
   onStartSave: (save: CareerSave) => void
+  onStartDaily: (save: CareerSave) => void
   onContinueSave: (run: RunState) => void
   onAbandonRun: (saveId: string) => void
   onSlotsChanged: () => void
@@ -23,12 +23,12 @@ interface MenuProps {
 
 export function Menu({
   onStartSave,
+  onStartDaily,
   onContinueSave,
   onAbandonRun,
   onSlotsChanged,
 }: MenuProps) {
   const [slots, setSlots] = useState(() => listSlots())
-  const [createSlot, setCreateSlot] = useState<SlotIndex | null>(null)
   const [hubSave, setHubSave] = useState<CareerSave | null>(null)
 
   const reload = useCallback(() => {
@@ -36,12 +36,11 @@ export function Menu({
     onSlotsChanged()
   }, [onSlotsChanged])
 
-  const handleCreate = (teamName: string, difficulty: DifficultyRerolls) => {
-    if (createSlot === null) return
-    const save = createSave(createSlot, teamName, difficulty)
-    setCreateSlot(null)
+  const startFresh = (slot: SlotIndex, daily = false) => {
+    const save = createSave(slot, 'Вылазка', 3)
     reload()
-    onStartSave(save)
+    if (daily) onStartDaily(save)
+    else onStartSave(save)
   }
 
   const handleDelete = () => {
@@ -56,6 +55,10 @@ export function Menu({
     .flatMap((s) => trophyLabels(s!.career))
     .filter((v, i, arr) => arr.indexOf(v) === i)
     .slice(0, 6)
+
+  const featured = slots
+    .filter((slot): slot is CareerSave => Boolean(slot))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
 
   return (
     <div className="screen menu-saves">
@@ -85,7 +88,7 @@ export function Menu({
                 key={slot}
                 type="button"
                 className="save-slot empty"
-                onClick={() => setCreateSlot(slot)}
+                onClick={() => startFresh(slot)}
               >
                 <span className="save-slot-plus">+</span>
                 <span className="save-slot-empty-label">Новая вылазка</span>
@@ -102,7 +105,9 @@ export function Menu({
               <span className="save-slot-name">{save.teamName}</span>
               <span className="save-diff-badge">{save.difficultyLabel}</span>
               <span className="save-slot-stat">
-                Лучший этап <strong>{save.career.bestStage}</strong>/100
+                {save.career.bestStage > 0
+                  ? <>Глава <strong>{Math.min(10, Math.ceil(save.career.bestStage / 10))}</strong></>
+                  : <>Ещё не ходили</>}
               </span>
               <span className="save-slot-stat">
                 Вылазок {save.career.runs} · пиров {save.career.crowns}
@@ -117,13 +122,23 @@ export function Menu({
         })}
       </section>
 
-      {createSlot !== null && (
-        <CreateSaveModal
-          slot={createSlot}
-          onCancel={() => setCreateSlot(null)}
-          onConfirm={handleCreate}
-        />
-      )}
+      <div className="menu-quick">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            if (featured) onStartDaily(featured)
+            else {
+              const empty = ([0, 1, 2] as SlotIndex[]).find((slot) => !slots[slot])
+              if (empty !== undefined) startFresh(empty, true)
+            }
+          }}
+        >
+          Пир дня
+        </button>
+      </div>
+
+      {featured && <JournalShelf save={featured} onChanged={reload} />}
 
       {hubSave && (
         <SaveHubModal

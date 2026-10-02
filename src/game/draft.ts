@@ -1,4 +1,5 @@
 import { PACKS } from '../data/packs'
+import { buildRegionEvents } from '../data/events'
 import {
   FINALE_REGION_ID,
   INTRO_REGION_ID,
@@ -18,11 +19,14 @@ import {
   getActiveSaveId,
   loadCareer,
   markCareerSeen,
+  saveCareer,
   setActiveSave,
   type CareerSave,
   type CareerState,
 } from './career'
 import { generateAdventurer } from './generateAdventurer'
+import { addAsh, claimProphecies, rememberBlueprints } from './meta'
+import { regionNeeds } from './needs'
 import { defaultRunPath, type RunPath } from './path'
 import { SeededRng } from './rng'
 import {
@@ -39,11 +43,11 @@ import type {
   CampOffer,
   CurrentPack,
   PartySlots,
+  RoleId,
   RouteOffer,
   RunConfig,
   RunState,
   SpellDef,
-  SpellUpgradeOffer,
 } from './types'
 import { DEFAULT_CAMPAIGN_MODS, PARTY_SIZE } from './types'
 import { isChapterBoss, planCampaign, TOTAL_STAGES } from './simulate'
@@ -86,19 +90,27 @@ export function createMenuState(seed?: string): RunState {
     runPath: defaultRunPath(active?.career.bestStage ?? 0, seed ?? 'menu'),
     upgradesTaken: 0,
     pendingCommit: false,
+    beat: 'done',
+    campTick: false,
+    pendingEvent: null,
+    recruitPicked: false,
     history: active?.history ?? [],
   }
 }
 
-/** Старт вылазки из активного сейва (или переданного). */
+/** Старт вылазки: один понятный пак, потом главы. Старый 5+5 не собираем заранее. */
 export function startRunFromSave(state: RunState, save: CareerSave, seed: string): RunState {
   setActiveSave(save.id)
+  const bonus = save.career.bonusRerolls ?? 0
+  if (bonus > 0) {
+    saveCareer({ ...save.career, bonusRerolls: 0 })
+  }
   const next: RunState = {
     ...state,
-    screen: 'draft',
+    screen: 'campaign',
     seed,
     config: { rerolls: save.difficulty },
-    rerollsLeft: save.difficulty,
+    rerollsLeft: save.difficulty + bonus,
     party: emptyParty(),
     spellPool: [],
     spellSlots: [],
@@ -112,15 +124,20 @@ export function startRunFromSave(state: RunState, save: CareerSave, seed: string
     pendingUpgrade: null,
     pendingCamp: null,
     pendingRoute: null,
+    pendingEvent: null,
     campaignMods: { ...DEFAULT_CAMPAIGN_MODS },
-    difficultyThreat: difficultyThreatAdjust(save.difficulty),
+    difficultyThreat:
+      difficultyThreatAdjust(save.difficulty) + (save.career.seals ?? 0) * 2,
     runPath: defaultRunPath(save.career.bestStage, seed),
     upgradesTaken: 0,
     pendingCommit: false,
+    beat: 'starter',
+    campTick: false,
+    recruitPicked: false,
     history: save.history,
   }
   noteSeenRegions([INTRO_REGION_ID])
-  return drawPack(next)
+  return drawStarter(next)
 }
 
 function planOpts(state: RunState, overallByStage?: number[], resumeFrom = 0) {
@@ -160,6 +177,7 @@ function noteSeenFromPack(state: RunState): void {
     >[],
     spellIds: state.current.spells.map((s) => s.id),
   })
+  rememberBlueprints(state.current.spells)
 }
 
 function noteSeenRegions(regionIds: Array<RegionId | null | undefined>): void {
@@ -209,6 +227,13 @@ function pickSpellsForCareer(rng: SeededRng, career: CareerState, count: number)
   for (let i = 0; i < count; i += 1) {
     spells.push(pickWeightedByRarity(rng, fallback))
   }
+  const printed = (career.blueprints ?? [])
+    .map((id) => SPELLS.find((spell) => spell.id === id))
+    .filter((spell): spell is SpellDef => Boolean(spell))
+    .filter((spell) => spell.level <= career.maxSpellTier && career.unlockedSchools.includes(spell.school))
+  if (printed.length > 0 && spells.length > 0 && rng.next() < 0.4) {
+    spells[0] = rng.pick(printed)
+  }
   return spells
 }
 
@@ -218,11 +243,12 @@ function materializePack(
   excludeNames: Set<string>,
   career: CareerState,
   drawNonce = 0,
+  size = PARTY_SIZE,
 ): CurrentPack {
   const template = PACKS.find((p) => p.id === packId) ?? rng.pick(PACKS)
   const names = new Set(excludeNames)
   const adventurers: AdventurerDef[] = []
-  for (let i = 0; i < PARTY_SIZE; i += 1) {
+  for (let i = 0; i < size; i += 1) {
     adventurers.push(
       generateAdventurer(rng, career, names, `${packId}-${rng.int(0, 99999)}-${i}`),
     )
@@ -233,7 +259,74 @@ function materializePack(
     name: template.name,
     chapter: template.chapter,
     adventurers,
-    spells: pickSpellsForCareer(rng, career, PARTY_SIZE),
+    spells: pickSpellsForCareer(rng, career, size),
+  }
+}
+
+const STARTER_ROLES: RoleId[] = ['tank', 'striker', 'support']
+
+function drawStarter(state: RunState): RunState {
+  const rng = new SeededRng(`${state.seed}-starter-${state.rerollsLeft}`)
+  const career = activeCareer()
+  const names = new Set<string>()
+  const adventurers = STARTER_ROLES.map((role, index) =>
+    generateAdventurer(rng, career, names, `start-${index}-${state.rerollsLeft}`, {
+      role,
+      rarity: 'common',
+      allowCursed: false,
+    }),
+  )
+  const current: CurrentPack = {
+    id: `starter-${state.rerollsLeft}`,
+    name: 'Последний Трезвый Двор',
+    chapter: 'Старт',
+    adventurers,
+    spells: [],
+  }
+  const next = { ...state, current, beat: 'starter' as const, screen: 'campaign' as const }
+  noteSeenFromPack(next)
+  return next
+}
+
+function starterSpell(adv: AdventurerDef): SpellDef {
+  const career = activeCareer()
+  const fit = SPELLS.find(
+    (spell) =>
+      spell.level === 0 &&
+      spell.classes.includes(adv.classId) &&
+      career.unlockedSchools.includes(spell.school),
+  )
+  return (
+    fit ??
+    SPELLS.find((spell) => spell.level === 0 && career.unlockedSchools.includes(spell.school)) ??
+    SPELLS[0]
+  )
+}
+
+function commitStarter(state: RunState, adv: AdventurerDef): RunState {
+  const party = addToParty(state.party, adv)
+  const spell = starterSpell(adv)
+  const spellPool = [spell]
+  const spellSlots = slotsFromPool(spellPool)
+  const roster = rosterFromParty(party)
+  return {
+    ...state,
+    party,
+    spellPool,
+    spellSlots,
+    spellAssign: autoAssignSpells(roster, spellSlots),
+    current: null,
+    beat: 'march',
+    screen: 'campaign',
+    pendingCommit: false,
+    recruitPicked: false,
+    // Небольшой запас, чтобы первый босс был близко, а не подарком. Со второй главы его нет.
+    campaignMods: {
+      threatAdjust: 0,
+      ovrBuffer: 8,
+      modFromStage: 0,
+      modUntilStage: 10,
+    },
   }
 }
 
@@ -280,9 +373,23 @@ export function pickAdventurer(state: RunState, adv: AdventurerDef): RunState {
       classes: [adv.classId],
       subclasses: adv.subclassId ? [adv.subclassId] : [],
     })
+    if (adv.cursed) addAsh(4)
   }
 
+  if (state.beat === 'starter') return commitStarter(state, adv)
+
   const party = addToParty(state.party, adv)
+  if (state.beat === 'camp') {
+    const roster = rosterFromParty(party)
+    const spellSlots = state.spellSlots
+    return {
+      ...state,
+      party,
+      spellAssign: autoAssignSpells(roster, spellSlots),
+      recruitPicked: true,
+    }
+  }
+
   const next = { ...state, party }
   if (isDraftComplete(party, state.spellPool)) return finishDraft(next)
   return drawPack(next)
@@ -300,6 +407,16 @@ export function pickSpell(state: RunState, spell: SpellDef): RunState {
 
   const spellPool = [...state.spellPool, spell]
   const spellSlots = slotsFromPool(spellPool, state.spellSlots)
+  if (state.beat === 'camp') {
+    const roster = rosterFromParty(state.party)
+    return {
+      ...state,
+      spellPool,
+      spellSlots,
+      spellAssign: autoAssignSpells(roster, spellSlots),
+      recruitPicked: true,
+    }
+  }
   const next = { ...state, spellPool, spellSlots }
   if (isDraftComplete(state.party, spellPool)) return finishDraft(next)
   return drawPack(next)
@@ -308,6 +425,7 @@ export function pickSpell(state: RunState, spell: SpellDef): RunState {
 export function reroll(state: RunState): RunState {
   if (state.pendingCommit) return state
   if (state.rerollsLeft <= 0) return state
+  if (state.beat === 'starter') return drawStarter({ ...state, rerollsLeft: state.rerollsLeft - 1 })
   return drawPack({ ...state, rerollsLeft: state.rerollsLeft - 1 })
 }
 
@@ -358,76 +476,21 @@ export function swapSpells(
   }
 }
 
-function buildUpgradeOffers(
-  state: RunState,
-  chapter: number,
-  rng: SeededRng,
-): SpellUpgradeOffer[] {
-  const offers: SpellUpgradeOffer[] = []
-  const slots = state.spellSlots
-  if (slots.length === 0) return offers
-
-  const levelIdx = rng.int(0, slots.length - 1)
-  const slot = slots[levelIdx]
-  const cap = Math.min(9, 2 + chapter)
-  if (slot.effectiveLevel < cap) {
-    offers.push({
-      id: `lvl-${levelIdx}`,
-      kind: 'level',
-      label: `Уровень: ${slot.spell.name}`,
-      detail: `${slot.effectiveLevel} → ${slot.effectiveLevel + 1}`,
-      poolIndex: levelIdx,
-    })
-  }
-
-  const masteryIdx = rng.int(0, slots.length - 1)
-  const mSlot = slots[masteryIdx]
-  if (mSlot.masteryBonus < 3) {
-    offers.push({
-      id: `mas-${masteryIdx}`,
-      kind: 'mastery',
-      label: `Владение: ${mSlot.spell.name}`,
-      detail: `синергия +1 (сейчас ${mSlot.masteryBonus})`,
-      poolIndex: masteryIdx,
-    })
-  }
-
+function recruitPack(state: RunState, chapter: number): CurrentPack | null {
+  if (partyCount(state.party) >= PARTY_SIZE && state.spellPool.length >= PARTY_SIZE) return null
+  const rng = new SeededRng(`${state.seed}-recruit-${chapter}-${state.upgradesTaken}`)
   const career = activeCareer()
-  const higher = SPELLS.filter(
-    (s) =>
-      s.level > Math.min(...slots.map((x) => x.effectiveLevel)) &&
-      s.level <= career.maxSpellTier + 1 &&
-      career.unlockedSchools.includes(s.school),
+  const pack = materializePack(
+    rng.pick(PACKS).id,
+    rng,
+    takenNames(state.party),
+    career,
+    1000 + chapter,
+    3,
   )
-  const replacePool = higher.length ? higher : SPELLS.filter((s) => s.level >= 3)
-  const newSpell = rng.pick(replacePool.length ? replacePool : SPELLS)
-  const replaceIdx = rng.int(0, slots.length - 1)
-  // Предложение замены = встреча со спеллом.
-  if (state.activeSaveId) {
-    markCareerSeen(activeCareer(), { spellIds: [newSpell.id] })
-  }
-  offers.push({
-    id: `rep-${replaceIdx}`,
-    kind: 'replace',
-    label: `Замена: ${slots[replaceIdx].spell.name}`,
-    detail: `→ ${newSpell.name} (${newSpell.level} ур.)`,
-    poolIndex: replaceIdx,
-    newSpell,
-  })
-
-  // Ensure 3 unique-ish offers
-  while (offers.length < 3) {
-    const i = rng.int(0, slots.length - 1)
-    offers.push({
-      id: `lvl-extra-${offers.length}`,
-      kind: 'level',
-      label: `Уровень: ${slots[i].spell.name}`,
-      detail: `${slots[i].effectiveLevel} → ${Math.min(9, slots[i].effectiveLevel + 1)}`,
-      poolIndex: i,
-    })
-  }
-
-  return offers.slice(0, 3)
+  const next = { ...state, current: pack }
+  noteSeenFromPack(next)
+  return pack
 }
 
 function buildCampOffers(
@@ -462,35 +525,20 @@ function buildCampOffers(
 
   return picks.map((regionId) => {
     const r = REGION_MAP[regionId]
-    const threatLabel =
-      r.threatAdjust === 0
-        ? 'обычная угроза'
-        : r.threatAdjust > 0
-          ? `жёстче (+${r.threatAdjust})`
-          : `тише (${r.threatAdjust})`
-    const pace =
-      r.threatAdjust > 1
-        ? 'дорога кусается'
-        : r.threatAdjust < 0
-          ? 'дорога мягче'
-          : 'дорога ровная'
-    const bufLabel =
-      r.ovrBuffer > 0
-        ? ` · запас силы +${r.ovrBuffer}`
-        : r.ovrBuffer < 0
-          ? ` · запас ${r.ovrBuffer}`
-          : ' · без запаса'
-    // Без имени босса — не спойлерим setpiece незнакомого края.
-    const sniff = r.blurb.split(/[.!?]/)[0]?.trim() ?? r.tag
+    const needs = regionNeeds(regionId)
+    const paceWord =
+      r.threatAdjust > 1 ? 'рискованнее' : r.threatAdjust < 0 ? 'тише' : 'ровнее'
     return {
       id: `region-${regionId}`,
       kind: 'region' as const,
       regionId,
       label: r.name,
-      detail: `${r.tag} · ${threatLabel}${bufLabel} · ${pace}. ${sniff}.`,
+      detail: `${needs.map((need) => need.label).join(' · ')} · ${paceWord}`,
       threatAdjust: r.threatAdjust,
       ovrBuffer: r.ovrBuffer,
       durationStages: 10,
+      needRoles: needs.map((need) => need.role),
+      needLabels: needs.map((need) => need.label),
     }
   })
 }
@@ -728,22 +776,24 @@ function simulateFrom(state: RunState, resumeFrom: number): RunState {
     plan.eliminatedAt = null
     plan.perfect = false
 
-    const rng = new SeededRng(`${state.seed}-up-${upgradesTaken}-${stopForUpgradeAt}`)
     const chapter = Math.floor(stopForUpgradeAt / 10) + 1
-    const offers = buildUpgradeOffers({ ...state, spellSlots }, chapter, rng)
     const campRng = new SeededRng(`${state.seed}-camp-${upgradesTaken}-${stopForUpgradeAt}`)
     const campOffers = buildCampOffers(chapter, campRng, activeCareer(), state.runPath)
-    const routeRng = new SeededRng(`${state.seed}-route-${upgradesTaken}-${stopForUpgradeAt}`)
-    const routeOffers = buildRouteOffers(chapter, routeRng)
+    const recruit = recruitPack(state, chapter)
 
     return {
       ...state,
       screen: 'campaign',
       spellSlots,
       spellAssign,
+      beat: 'camp',
+      campTick: true,
+      recruitPicked: false,
+      current: recruit,
       pendingCamp: campOffers.length ? campOffers : null,
-      pendingRoute: routeOffers,
-      pendingUpgrade: offers,
+      pendingRoute: null,
+      pendingUpgrade: null,
+      pendingEvent: buildRegionEvents(chapter),
       result: {
         record: plan.record,
         wins: plan.wins,
@@ -770,11 +820,18 @@ function simulateFrom(state: RunState, resumeFrom: number): RunState {
     planOpts(state, overallByStage, resume),
   )
 
-  const { unlocks } = applyCareerProgress(
-    activeCareer(),
+  const rosterNow = rosterFromParty(state.party)
+  const { unlocks: progressUnlocks } = applyCareerProgress(
+    {
+      ...activeCareer(),
+      lastHadTank: rosterNow.some((adv) => adv.role === 'tank'),
+    },
     plan.stagesCleared + 1,
     plan.perfect,
   )
+  const claimed = claimProphecies(loadCareer())
+  if (claimed.lines.length > 0) saveCareer(claimed.career)
+  const unlocks = [...progressUnlocks, ...claimed.lines]
 
   const result = {
     record: plan.record,
@@ -812,6 +869,9 @@ function simulateFrom(state: RunState, resumeFrom: number): RunState {
     pendingUpgrade: null,
     pendingCamp: null,
     pendingRoute: null,
+    pendingEvent: null,
+    beat: 'done',
+    campTick: false,
     result,
     history,
   }
@@ -825,6 +885,7 @@ export function afterUpgradeContinue(state: RunState): RunState {
     pendingUpgrade: null,
     pendingCamp: null,
     pendingRoute: null,
+    pendingEvent: null,
     result: null,
   }
   // Финал (гл.10) открывается только когда до него дошли — до этого ??? на ленте.
@@ -837,9 +898,74 @@ export function afterUpgradeContinue(state: RunState): RunState {
   return resolveRun(next, resumeFrom)
 }
 
+export function campBlocked(state: RunState): boolean {
+  return Boolean(
+    state.pendingCamp?.length ||
+      state.pendingRoute?.length ||
+      state.pendingEvent?.length ||
+      state.pendingUpgrade?.length,
+  )
+}
+
+export function applyEventChoice(state: RunState, offerId: string): RunState {
+  const offer = state.pendingEvent?.find((item) => item.id === offerId)
+  if (!offer) return state
+  if (offer.ash) addAsh(offer.ash)
+  const fromStage = state.result?.stagesCleared ?? 0
+  const campaignMods =
+    offer.ovrBuffer && offer.ovrBuffer !== 0
+      ? {
+          ...state.campaignMods,
+          ovrBuffer: state.campaignMods.ovrBuffer + offer.ovrBuffer,
+          modFromStage: state.campaignMods.modFromStage ?? fromStage,
+          modUntilStage: state.campaignMods.modUntilStage ?? fromStage + 10,
+        }
+      : state.campaignMods
+  return { ...state, pendingEvent: null, campaignMods }
+}
+
+/** Закрыть лагерь новой петли и идти в следующую главу. */
+export function leaveCamp(state: RunState): RunState {
+  if (campBlocked(state)) return state
+  const resumeFrom = state.result?.stagesCleared ?? 0
+  const tick = Boolean(state.campTick)
+  let next: RunState = {
+    ...state,
+    beat: 'march',
+    campTick: false,
+    current: null,
+    recruitPicked: false,
+    pendingEvent: null,
+    pendingCamp: null,
+    pendingRoute: null,
+    pendingUpgrade: null,
+    upgradesTaken: state.upgradesTaken + (tick ? 1 : 0),
+    result: null,
+  }
+  if (next.upgradesTaken >= 9 && !next.runPath[9]) {
+    const runPath = [...next.runPath] as RunPath
+    runPath[9] = FINALE_REGION_ID
+    next = { ...next, runPath }
+    noteSeenRegions([FINALE_REGION_ID])
+  }
+  return resolveRun(next, resumeFrom)
+}
+
+export function skipToNext(state: RunState): RunState {
+  let next = state
+  if (next.pendingCamp?.length) next = skipCampChoice(next)
+  if (next.pendingRoute?.length) next = skipRouteChoice(next)
+  if (next.pendingEvent?.length) next = applyEventChoice(next, next.pendingEvent[0].id)
+  if (next.pendingUpgrade?.length) next = skipSpellUpgrade(next)
+  if (next.campTick) return leaveCamp(next)
+  return afterUpgradeContinue(next)
+}
+
 export function canPickAdventurer(state: RunState, adv: AdventurerDef): boolean {
-  if (state.pendingCommit || state.screen === 'campaign') return false
+  if (state.pendingCommit) return false
   if (!state.current) return false
+  if (state.beat === 'camp' && state.recruitPicked) return false
+  if (state.beat !== 'starter' && state.beat !== 'camp' && state.screen === 'campaign') return false
   if (partyCount(state.party) >= PARTY_SIZE) return false
   if (takenAdventurerIds(state.party).has(adv.id)) return false
   if (takenNames(state.party).has(adv.name.toLowerCase())) return false
@@ -847,8 +973,10 @@ export function canPickAdventurer(state: RunState, adv: AdventurerDef): boolean 
 }
 
 export function canPickSpell(state: RunState, spell: SpellDef): boolean {
-  if (state.pendingCommit || state.screen === 'campaign') return false
+  if (state.pendingCommit) return false
   if (!state.current) return false
+  if (state.beat === 'camp' && state.recruitPicked) return false
+  if (state.beat !== 'camp' && state.screen === 'campaign') return false
   if (state.spellPool.length >= PARTY_SIZE) return false
   return state.current.spells.some((s) => s.id === spell.id)
 }
