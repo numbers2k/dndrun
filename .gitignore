@@ -31,8 +31,3 @@ dist-ssr
 
 # Cursor / local agent
 .cursor/
-
-# Dev-only docs & tooling (not part of the shipped game)
-LORE.md
-ROADMAP.md
-scripts/
