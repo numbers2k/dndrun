@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { CARD_MAP, HEROES } from '../src/expedition/data.ts'
+import { ENEMY_MAP } from '../src/expedition/encounters.ts'
 import {
   buy,
+  canUpgrade,
   continueEndless,
   retire,
   migrateRun,
@@ -23,10 +25,13 @@ import {
   recruit,
   rest,
   takeReward,
+  takeRelic,
   targetDamage,
   values,
 } from '../src/expedition/engine.ts'
 import { simulate } from './bot.mts'
+import { readSettings, writeSettings } from '../src/expedition/settings.ts'
+import { partyCoverage } from '../src/expedition/roster.ts'
 import type { Card, Run } from '../src/expedition/types.ts'
 let passed = 0
 function test(name: string, fn: () => void) {
@@ -142,16 +147,16 @@ test('Piercing ignores enemy shield, regular attacks consume it', () => {
   assert.equal(normal.combat!.enemies[0].hp, 19)
   assert.equal(normal.combat!.enemies[0].block, 3)
 })
-test('Guardian shield persists throughout the player turn', () => {
+test('Seal boss armor persists until two different heroes act', () => {
   const r = newRun('warden', 'guard')
   r.depth = 9
-  r.nodes = [{ id: 'boss-10', kind: 'boss', name: 'Дозорный', description: '' }]
+  r.nodes = [{ id: 'boss-10', kind: 'boss', name: 'Дозорный', description: '', bossId: 'guardian' }]
   const b = chooseNode(r, 'boss-10')
-  assert.equal(b.combat!.enemies[0].block, 12)
+  assert.equal(b.combat!.enemies[0].block, 14)
   const c = put(b, 'slash'),
     hit = playCard(b, c.uid, 0)
-  assert.equal(hit.combat!.enemies[0].hp, 138)
-  assert.equal(hit.combat!.enemies[0].block, 3)
+  assert.equal(hit.combat!.enemies[0].hp, 130)
+  assert.equal(hit.combat!.enemies[0].block, 5)
 })
 test('Heal uses priest bonus, caps HP and exhausts', () => {
   const r = fight(),
@@ -166,7 +171,7 @@ test('Area protection affects team, not enemies', () => {
   const r = chooseNode(newRun('mage', 'group'), 'battle-1'),
     c = put(r, 'chorus')
   const n = playCard(r, c.uid, 0)
-  assert.ok(n.party.every((h) => h.block === 7))
+  assert.ok(n.party.every((h, i) => h.block === r.party[i].block + 7))
   assert.ok(n.combat!.enemies.every((e) => e.block === 0))
 })
 test('Energy and draw cards apply and disappear once', () => {
@@ -332,7 +337,9 @@ test('Boss reward revives fallen heroes and enables replacement', () => {
   assert.equal(n.party[2].hp, 15)
   assert.equal(n.party[0].hp, 42)
   assert.ok(n.reward!.recruit)
-  assert.equal(n.relics.length, 2)
+  assert.equal(n.relics.length, 1)
+  assert.equal(n.reward!.relicChoices!.length, 3)
+  assert.equal(takeRelic(n, n.reward!.relicChoices![0]).relics.length, 2)
   assert.equal(n.gold, 100)
 })
 test('Dragon announces team attack and hits each hero only once', () => {
@@ -344,13 +351,13 @@ test('Dragon announces team attack and hits each hero only once', () => {
   b = endTurn(b)
   assert.equal(b.combat!.turn, 3)
   assert.equal(b.combat!.enemies[0].intent.target, -1)
-  assert.equal(b.combat!.enemies[0].intent.damage, 18)
+  assert.equal(b.combat!.enemies[0].intent.damage, 14)
   for (const h of b.party) {
     h.hp = h.maxHp
     h.block = 0
   }
   const n = endTurn(b)
-  assert.ok(n.party.every((h, i) => h.hp === b.party[i].hp - 18))
+  assert.ok(n.party.every((h, i) => h.hp === b.party[i].hp - 14))
 })
 test('Final reward ends route and cannot reopen encounters', () => {
   const r = fight()
@@ -409,8 +416,8 @@ test('Endless retains build, applies chosen boon and deterministically regenerat
   assert.equal(continueEndless(n, 'edge'), n)
   const b = chooseNode(n, n.nodes.find((n) => n.kind === 'battle')!.id)
   assert.equal(b.depth, 16)
-  assert.ok(b.combat!.enemies[0].maxHp > 24)
-  assert.ok(b.combat!.enemies[0].power >= 8)
+  assert.ok(b.combat!.enemies[0].maxHp > ENEMY_MAP[b.combat!.enemies[0].id].hp)
+  assert.ok(b.combat!.enemies[0].power >= ENEMY_MAP[b.combat!.enemies[0].id].power + 2)
 })
 test('Each completed circle offers another continuation without a depth cap', () => {
   const r = newRun('mage', 'deep')
@@ -454,7 +461,14 @@ test('Score rewards encounters and bonuses once, not repeated damage', () => {
   const c = put(r, 'slash'),
     n = playCard(r, c.uid, 0)
   assert.equal(n.score, 345)
-  assert.deepEqual(n.lastScore, { base: 100, speed: 125, flawless: 100, combo: 20, total: 345 })
+  assert.deepEqual(n.lastScore, {
+    base: 100,
+    speed: 125,
+    flawless: 100,
+    combo: 20,
+    finisher: 0,
+    total: 345,
+  })
   assert.equal(playCard(n, c.uid, 0).score, 345)
   assert.equal(takeReward(n, null).score, 345)
 })
@@ -508,6 +522,42 @@ test('Daily board keeps each player and their best attempt', () => {
   p = record(r, p).profile
   assert.equal(p.records.length, 2)
   assert.equal(p.records.find((h) => h.player === 'А')!.score, 400)
+})
+test('High records in one starting party cannot evict another category', () => {
+  let p = emptyProfile()
+  for (let i = 0; i < 24; i++) {
+    const r = newRun('mage', `rank-${i}`, 'normal', ['mage', 'oracle', 'bard'])
+    r.phase = 'defeat'
+    r.depth = r.cleared = 15
+    r.score = 20000 + i
+    p = record(r, p).profile
+  }
+  const other = newRun('warden', 'other-party', 'normal', ['warden', 'ranger', 'priest'])
+  other.phase = 'defeat'
+  other.depth = other.cleared = 15
+  other.score = 500
+  p = record(other, p).profile
+  assert.equal(p.records.length, 11)
+  assert.equal(p.records.filter((entry) => entry.party.includes('oracle')).length, 10)
+  assert.ok(p.records.some((entry) => entry.runId === other.runId))
+})
+test('Preferences persist separately and malformed settings fall back safely', () => {
+  writeSettings({ sound: true, largeText: true })
+  assert.deepEqual(readSettings(), { sound: true, largeText: true })
+  storage.set('dndrun-settings-v1', '{broken')
+  assert.deepEqual(readSettings(), { sound: false, largeText: false })
+})
+test('A junk card cannot consume a rest or event upgrade', () => {
+  const ash = { id: 'ash', uid: 'ash', upgraded: false }
+  assert.equal(canUpgrade(ash), false)
+  const run = newRun('warden', 'ash-rest')
+  run.phase = 'rest'
+  run.deck.push(ash)
+  assert.equal(rest(run, 'upgrade', ash.uid), run)
+})
+test('Starting party preview counts guaranteed defense and healing cards', () => {
+  assert.deepEqual(partyCoverage(['warden', 'ranger', 'priest']), { block: 3, healing: 1 })
+  assert.deepEqual(partyCoverage(['mage', 'rogue', 'ranger']), { block: 1, healing: 0 })
 })
 test('Old saves migrate with no fake ranked score and retired v4 run stays retired', () => {
   const old = structuredClone(newRun('warden', 'old')) as unknown as Record<string, unknown>

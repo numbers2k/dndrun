@@ -1,0 +1,464 @@
+{
+  "date": "2026-10-10",
+  "sample": 4400,
+  "notes": "Heuristic bots, not human playtests. Active routes; shared starting seeds, later RNG changes with decisions. Empty defensive hand means no printed block/heal, not proof of an unavoidable wound.",
+  "rows": [
+    {
+      "name": "standard",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 152,
+      "meanScore": 4479,
+      "meanDepth": 14.61,
+      "meanBossTurns": 6.06,
+      "emptyDefensiveHands": 0.085,
+      "maxPlays": 7,
+      "deaths": {
+        "11": 1,
+        "13": 13,
+        "15": 34
+      },
+      "fallen": {
+        "priest": 181,
+        "ranger": 170,
+        "warden": 34
+      }
+    },
+    {
+      "name": "standard",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 173,
+      "meanScore": 4873,
+      "meanDepth": 14.77,
+      "meanBossTurns": 5.03,
+      "emptyDefensiveHands": 0.08,
+      "maxPlays": 9,
+      "deaths": {
+        "12": 1,
+        "13": 8,
+        "15": 18
+      },
+      "fallen": {
+        "ranger": 147,
+        "priest": 162,
+        "warden": 33
+      }
+    },
+    {
+      "name": "arcane",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 180,
+      "meanScore": 6430,
+      "meanDepth": 14.88,
+      "meanBossTurns": 5.33,
+      "emptyDefensiveHands": 0.152,
+      "maxPlays": 17,
+      "deaths": {
+        "12": 1,
+        "13": 1,
+        "15": 18
+      },
+      "fallen": {
+        "priest": 65,
+        "bard": 50,
+        "mage": 33
+      }
+    },
+    {
+      "name": "arcane",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 179,
+      "meanScore": 6691,
+      "meanDepth": 14.88,
+      "meanBossTurns": 4.84,
+      "emptyDefensiveHands": 0.153,
+      "maxPlays": 19,
+      "deaths": {
+        "13": 2,
+        "15": 19
+      },
+      "fallen": {
+        "priest": 47,
+        "bard": 30,
+        "mage": 39
+      }
+    },
+    {
+      "name": "oracle",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 198,
+      "meanScore": 6874,
+      "meanDepth": 14.99,
+      "meanBossTurns": 3.58,
+      "emptyDefensiveHands": 0.103,
+      "maxPlays": 18,
+      "deaths": {
+        "15": 2
+      },
+      "fallen": {
+        "bard": 59,
+        "oracle": 44,
+        "warden": 5
+      }
+    },
+    {
+      "name": "oracle",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 199,
+      "meanScore": 7272,
+      "meanDepth": 14.99,
+      "meanBossTurns": 3.33,
+      "emptyDefensiveHands": 0.107,
+      "maxPlays": 19,
+      "deaths": {
+        "15": 1
+      },
+      "fallen": {
+        "bard": 53,
+        "oracle": 42,
+        "warden": 3
+      }
+    },
+    {
+      "name": "poison",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 88,
+      "meanScore": 4255,
+      "meanDepth": 13.68,
+      "meanBossTurns": 4.04,
+      "emptyDefensiveHands": 0.218,
+      "maxPlays": 8,
+      "deaths": {
+        "11": 3,
+        "12": 5,
+        "13": 63,
+        "15": 41
+      },
+      "fallen": {
+        "rogue": 116,
+        "priest": 140,
+        "alchemist": 113
+      }
+    },
+    {
+      "name": "poison",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 118,
+      "meanScore": 4378,
+      "meanDepth": 14.09,
+      "meanBossTurns": 3.89,
+      "emptyDefensiveHands": 0.204,
+      "maxPlays": 9,
+      "deaths": {
+        "11": 2,
+        "12": 1,
+        "13": 45,
+        "15": 34
+      },
+      "fallen": {
+        "alchemist": 123,
+        "priest": 142,
+        "rogue": 111
+      }
+    },
+    {
+      "name": "counter",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 138,
+      "meanScore": 4439,
+      "meanDepth": 14.51,
+      "meanBossTurns": 6.93,
+      "emptyDefensiveHands": 0.02,
+      "maxPlays": 6,
+      "deaths": {
+        "13": 18,
+        "15": 44
+      },
+      "fallen": {
+        "priest": 192,
+        "warden": 133,
+        "duelist": 64
+      }
+    },
+    {
+      "name": "counter",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 140,
+      "meanScore": 4455,
+      "meanDepth": 14.63,
+      "meanBossTurns": 6.94,
+      "emptyDefensiveHands": 0.02,
+      "maxPlays": 7,
+      "deaths": {
+        "13": 7,
+        "15": 53
+      },
+      "fallen": {
+        "priest": 193,
+        "warden": 116,
+        "duelist": 71
+      }
+    },
+    {
+      "name": "fragile",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 141,
+      "meanScore": 5242,
+      "meanDepth": 14.53,
+      "meanBossTurns": 3.83,
+      "emptyDefensiveHands": 0.623,
+      "maxPlays": 12,
+      "deaths": {
+        "11": 1,
+        "13": 16,
+        "15": 42
+      },
+      "fallen": {
+        "ranger": 117,
+        "mage": 123,
+        "rogue": 106
+      }
+    },
+    {
+      "name": "fragile",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 153,
+      "meanScore": 5622,
+      "meanDepth": 14.58,
+      "meanBossTurns": 3.08,
+      "emptyDefensiveHands": 0.654,
+      "maxPlays": 14,
+      "deaths": {
+        "11": 1,
+        "13": 16,
+        "14": 1,
+        "15": 29
+      },
+      "fallen": {
+        "mage": 103,
+        "rogue": 81,
+        "ranger": 90
+      }
+    },
+    {
+      "name": "draw-engine",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 194,
+      "meanScore": 7207,
+      "meanDepth": 14.96,
+      "meanBossTurns": 3.09,
+      "emptyDefensiveHands": 0.259,
+      "maxPlays": 19,
+      "deaths": {
+        "13": 1,
+        "15": 5
+      },
+      "fallen": {
+        "oracle": 45,
+        "mage": 25,
+        "bard": 26
+      }
+    },
+    {
+      "name": "draw-engine",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 197,
+      "meanScore": 7417,
+      "meanDepth": 14.98,
+      "meanBossTurns": 2.83,
+      "emptyDefensiveHands": 0.258,
+      "maxPlays": 19,
+      "deaths": {
+        "15": 3
+      },
+      "fallen": {
+        "oracle": 16,
+        "bard": 26,
+        "mage": 30
+      }
+    },
+    {
+      "name": "no-healer",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 154,
+      "meanScore": 5634,
+      "meanDepth": 14.7,
+      "meanBossTurns": 4.58,
+      "emptyDefensiveHands": 0.294,
+      "maxPlays": 8,
+      "deaths": {
+        "13": 7,
+        "15": 39
+      },
+      "fallen": {
+        "warden": 50,
+        "ranger": 171,
+        "rogue": 168
+      }
+    },
+    {
+      "name": "no-healer",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 181,
+      "meanScore": 6170,
+      "meanDepth": 14.88,
+      "meanBossTurns": 3.74,
+      "emptyDefensiveHands": 0.308,
+      "maxPlays": 9,
+      "deaths": {
+        "13": 2,
+        "15": 17
+      },
+      "fallen": {
+        "ranger": 152,
+        "rogue": 154,
+        "warden": 44
+      }
+    },
+    {
+      "name": "thin-hand",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 100,
+      "meanScore": 5207,
+      "meanDepth": 14.17,
+      "meanBossTurns": 6.13,
+      "emptyDefensiveHands": 0.152,
+      "maxPlays": 7,
+      "deaths": {
+        "11": 3,
+        "13": 27,
+        "15": 70
+      },
+      "fallen": {
+        "ranger": 176,
+        "priest": 187,
+        "warden": 50
+      }
+    },
+    {
+      "name": "thin-hand",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 150,
+      "meanScore": 5819,
+      "meanDepth": 14.59,
+      "meanBossTurns": 5.57,
+      "emptyDefensiveHands": 0.146,
+      "maxPlays": 9,
+      "deaths": {
+        "10": 1,
+        "11": 1,
+        "12": 1,
+        "13": 10,
+        "15": 37
+      },
+      "fallen": {
+        "ranger": 162,
+        "priest": 183,
+        "warden": 42
+      }
+    },
+    {
+      "name": "ashfall",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 149,
+      "meanScore": 5571,
+      "meanDepth": 14.59,
+      "meanBossTurns": 6.04,
+      "emptyDefensiveHands": 0.098,
+      "maxPlays": 8,
+      "deaths": {
+        "12": 2,
+        "13": 13,
+        "15": 36
+      },
+      "fallen": {
+        "priest": 178,
+        "ranger": 162,
+        "warden": 40
+      }
+    },
+    {
+      "name": "ashfall",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 162,
+      "meanScore": 5984,
+      "meanDepth": 14.71,
+      "meanBossTurns": 5.15,
+      "emptyDefensiveHands": 0.106,
+      "maxPlays": 8,
+      "deaths": {
+        "12": 1,
+        "13": 9,
+        "15": 28
+      },
+      "fallen": {
+        "priest": 158,
+        "ranger": 151,
+        "warden": 38
+      }
+    },
+    {
+      "name": "hard",
+      "strategy": "novice",
+      "samples": 200,
+      "wins": 28,
+      "meanScore": 5250,
+      "meanDepth": 12.62,
+      "meanBossTurns": 7.08,
+      "emptyDefensiveHands": 0.081,
+      "maxPlays": 6,
+      "deaths": {
+        "10": 9,
+        "11": 17,
+        "13": 96,
+        "15": 50
+      },
+      "fallen": {
+        "ranger": 172,
+        "priest": 185,
+        "warden": 54
+      }
+    },
+    {
+      "name": "hard",
+      "strategy": "tactical",
+      "samples": 200,
+      "wins": 36,
+      "meanScore": 5814,
+      "meanDepth": 12.89,
+      "meanBossTurns": 5.89,
+      "emptyDefensiveHands": 0.086,
+      "maxPlays": 8,
+      "deaths": {
+        "10": 4,
+        "11": 12,
+        "13": 95,
+        "15": 53
+      },
+      "fallen": {
+        "ranger": 166,
+        "priest": 179,
+        "warden": 65
+      }
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import type { CardDef, HeroDef, HeroId } from './types'
+import { COMPANIONS, COMPANION_CARDS, BUILD_RELICS, ROAD_EVENTS } from './companions'
 
 export const HEROES: Record<HeroId, HeroDef> = {
+  ...COMPANIONS,
   warden: {
     id: 'warden',
     name: 'Бран',
@@ -64,6 +66,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
 }
 
 export const CARDS: CardDef[] = [
+  ...COMPANION_CARDS,
   {
     id: 'slash',
     name: 'Удар мечом',
@@ -444,13 +447,25 @@ export const CARDS: CardDef[] = [
   },
 ]
 export const CARD_MAP = Object.fromEntries(CARDS.map((c) => [c.id, c])) as Record<string, CardDef>
-export const STARTERS: HeroId[] = ['warden', 'ranger', 'mage']
+export const STARTERS: HeroId[] = ['warden', 'ranger', 'mage', 'alchemist', 'duelist', 'oracle']
 export const STARTER_PARTIES: Record<string, HeroId[]> = {
   warden: ['warden', 'ranger', 'priest'],
   ranger: ['ranger', 'warden', 'rogue'],
   mage: ['mage', 'warden', 'bard'],
+  alchemist: ['alchemist', 'warden', 'rogue'],
+  duelist: ['duelist', 'oracle', 'priest'],
+  oracle: ['oracle', 'alchemist', 'bard'],
+}
+export const STARTER_RELIC: Record<string, string> = {
+  warden: 'lantern',
+  ranger: 'satchel',
+  mage: 'hourglass',
+  alchemist: 'vial',
+  duelist: 'lantern',
+  oracle: 'hourglass',
 }
 export const RELICS = [
+  ...BUILD_RELICS,
   {
     id: 'lantern',
     name: 'Походный фонарь',
@@ -566,6 +581,7 @@ export const EVENTS = [
     b: 'Искать безопасный проход',
     bText: 'Весь отряд получает 4 здоровья.',
   },
+  ...ROAD_EVENTS,
 ]
 export const KIND_LABEL = {
   battle: 'Стычка',

@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-09T17:47:03.300Z",
+  "notes": "1200 heuristic campaigns, 50 fresh profiles per route policy, fixed default party; no recruitment or optimized combos. Completion sample is censored at 12 runs.",
+  "bossAttackFeedback": {
+    "phase": "reward",
+    "card": "Удар мечом",
+    "healAttributed": 36,
+    "detail": "1 урона · +2 защиты · +36 здоровья"
+  },
+  "ashUpgrade": {
+    "offered": true,
+    "phaseAfter": "route",
+    "upgraded": true,
+    "before": "Неиграемая помеха. Исчезает из руки в конце хода. Очищение убирает её сразу.",
+    "after": "Неиграемая помеха. Исчезает из руки в конце хода. Очищение убирает её сразу."
+  },
+  "leaderboard": {
+    "retained": 100,
+    "newCategorySaved": false,
+    "historyContainsIt": true
+  },
+  "bossFamilies": [
+    "echo",
+    "seal",
+    "summon",
+    "hunt"
+  ],
+  "cohorts": [
+    {
+      "routeStyle": "safe",
+      "samples": 600,
+      "wins": 580,
+      "meanScore": 3887,
+      "meanKnownByAttempt": [
+        4.94,
+        6.3,
+        7.22,
+        7.7,
+        8.14,
+        8.36,
+        8.62,
+        8.72,
+        8.84,
+        8.88,
+        8.94,
+        8.94
+      ],
+      "completeCollectionsBy12": 47,
+      "earliestFullCollection": 3,
+      "latestFullCollection": 11,
+      "medianFullCollectionAmongCompleted": 7
+    },
+    {
+      "routeStyle": "active",
+      "samples": 600,
+      "wins": 509,
+      "meanScore": 4862,
+      "meanKnownByAttempt": [
+        4.88,
+        6.2,
+        7.08,
+        7.6,
+        8.04,
+        8.26,
+        8.46,
+        8.58,
+        8.7,
+        8.76,
+        8.8,
+        8.86
+      ],
+      "completeCollectionsBy12": 44,
+      "earliestFullCollection": 3,
+      "latestFullCollection": 12,
+      "medianFullCollectionAmongCompleted": 7
+    }
+  ]
+}

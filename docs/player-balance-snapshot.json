@@ -1,0 +1,223 @@
+{
+  "date": "2026-10-09",
+  "sample": 960,
+  "notes": "Heuristic policies, not human players. Same seed sets; decisions change later RNG. Active prefers combat when healthy; safe prefers events/rest/shops.",
+  "rows": [
+    {
+      "leader": "warden",
+      "strategy": "novice",
+      "route": "safe",
+      "runs": 40,
+      "wins": 37,
+      "meanDepth": 14.88,
+      "meanScore": 3658
+    },
+    {
+      "leader": "warden",
+      "strategy": "novice",
+      "route": "active",
+      "runs": 40,
+      "wins": 33,
+      "meanDepth": 14.72,
+      "meanScore": 4552
+    },
+    {
+      "leader": "warden",
+      "strategy": "tactical",
+      "route": "safe",
+      "runs": 40,
+      "wins": 38,
+      "meanDepth": 14.9,
+      "meanScore": 3900
+    },
+    {
+      "leader": "warden",
+      "strategy": "tactical",
+      "route": "active",
+      "runs": 40,
+      "wins": 37,
+      "meanDepth": 14.88,
+      "meanScore": 4967
+    },
+    {
+      "leader": "ranger",
+      "strategy": "novice",
+      "route": "safe",
+      "runs": 40,
+      "wins": 38,
+      "meanDepth": 14.95,
+      "meanScore": 3850
+    },
+    {
+      "leader": "ranger",
+      "strategy": "novice",
+      "route": "active",
+      "runs": 40,
+      "wins": 31,
+      "meanDepth": 14.78,
+      "meanScore": 4718
+    },
+    {
+      "leader": "ranger",
+      "strategy": "tactical",
+      "route": "safe",
+      "runs": 40,
+      "wins": 40,
+      "meanDepth": 15,
+      "meanScore": 4156
+    },
+    {
+      "leader": "ranger",
+      "strategy": "tactical",
+      "route": "active",
+      "runs": 40,
+      "wins": 36,
+      "meanDepth": 14.9,
+      "meanScore": 5171
+    },
+    {
+      "leader": "mage",
+      "strategy": "novice",
+      "route": "safe",
+      "runs": 40,
+      "wins": 40,
+      "meanDepth": 15,
+      "meanScore": 4501
+    },
+    {
+      "leader": "mage",
+      "strategy": "novice",
+      "route": "active",
+      "runs": 40,
+      "wins": 37,
+      "meanDepth": 14.93,
+      "meanScore": 6242
+    },
+    {
+      "leader": "mage",
+      "strategy": "tactical",
+      "route": "safe",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 4682
+    },
+    {
+      "leader": "mage",
+      "strategy": "tactical",
+      "route": "active",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 6625
+    },
+    {
+      "leader": "alchemist",
+      "strategy": "novice",
+      "route": "safe",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 3823
+    },
+    {
+      "leader": "alchemist",
+      "strategy": "novice",
+      "route": "active",
+      "runs": 40,
+      "wins": 38,
+      "meanDepth": 14.9,
+      "meanScore": 4807
+    },
+    {
+      "leader": "alchemist",
+      "strategy": "tactical",
+      "route": "safe",
+      "runs": 40,
+      "wins": 40,
+      "meanDepth": 15,
+      "meanScore": 3900
+    },
+    {
+      "leader": "alchemist",
+      "strategy": "tactical",
+      "route": "active",
+      "runs": 40,
+      "wins": 37,
+      "meanDepth": 14.88,
+      "meanScore": 4813
+    },
+    {
+      "leader": "duelist",
+      "strategy": "novice",
+      "route": "safe",
+      "runs": 40,
+      "wins": 40,
+      "meanDepth": 15,
+      "meanScore": 4137
+    },
+    {
+      "leader": "duelist",
+      "strategy": "novice",
+      "route": "active",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 5521
+    },
+    {
+      "leader": "duelist",
+      "strategy": "tactical",
+      "route": "safe",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.93,
+      "meanScore": 4229
+    },
+    {
+      "leader": "duelist",
+      "strategy": "tactical",
+      "route": "active",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 5638
+    },
+    {
+      "leader": "oracle",
+      "strategy": "novice",
+      "route": "safe",
+      "runs": 40,
+      "wins": 40,
+      "meanDepth": 15,
+      "meanScore": 4623
+    },
+    {
+      "leader": "oracle",
+      "strategy": "novice",
+      "route": "active",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 6229
+    },
+    {
+      "leader": "oracle",
+      "strategy": "tactical",
+      "route": "safe",
+      "runs": 40,
+      "wins": 39,
+      "meanDepth": 14.97,
+      "meanScore": 4755
+    },
+    {
+      "leader": "oracle",
+      "strategy": "tactical",
+      "route": "active",
+      "runs": 40,
+      "wins": 40,
+      "meanDepth": 15,
+      "meanScore": 6481
+    }
+  ]
+}

@@ -1,8 +1,15 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { CARD_MAP, HEROES } from './data'
-import { cardDescription, combatDescription, upgradeLevel } from './engine'
+import {
+  cardDescription,
+  combatDescription,
+  upgradeLevel,
+  cardCost,
+  comboMultiplier,
+} from './engine'
 import { Icon } from './Art'
 import type { Card, Run } from './types'
+import { cardTags } from './synergies'
 export function Meter({ value, max, shield = 0 }: { value: number; max: number; shield?: number }) {
   return (
     <div className="meter-wrap">
@@ -29,9 +36,11 @@ export function ActionCard({
   selected,
   footer,
   context,
+  upgradePreview = false,
 }: {
   card: Card
   context?: Run
+  upgradePreview?: boolean
   onClick?: () => void
   disabled?: boolean
   selected?: boolean
@@ -43,7 +52,7 @@ export function ActionCard({
     <>
       <div className="card-top">
         <span className="cost" title="Стоимость в энергии">
-          {d.cost}
+          {context ? cardCost(context, card) : d.cost}
         </span>
         <span>{hero.role}</span>
         <Icon
@@ -73,6 +82,33 @@ export function ActionCard({
         {card.upgraded && <span className="upgrade"> +{upgradeLevel(card)}</span>}
       </h3>
       <p>{context ? combatDescription(context, card) : cardDescription(card)}</p>
+      {upgradePreview && (
+        <small className="card-combo">
+          После улучшения:{' '}
+          {cardDescription({ ...card, upgraded: true, level: upgradeLevel(card) + 1 })}
+        </small>
+      )}
+      {!context && <small className="card-combo">{cardTags(card).slice(0, 2).join(' · ')}</small>}
+      {!context && d.heal && d.hero === 'priest' && (
+        <small className="card-combo">Мира в бою добавит ещё 2 здоровья.</small>
+      )}
+      {!context && d.poison && d.hero === 'alchemist' && (
+        <small className="card-combo">Нэра в бою добавит ещё 2 яда.</small>
+      )}
+      {context && d.damage && (
+        <small className="card-combo">
+          Следующая связка · урон ×{comboMultiplier(context, card)}
+        </small>
+      )}
+      {context &&
+        d.damage &&
+        d.target === 'all' &&
+        (context.combat?.areaAttacks ?? 0) >= 1 &&
+        context.combat?.enemies.some((e) => e.hp > 0 && e.id === 'weaver') && (
+          <small className="card-combo">
+            Завеса: врагам +6 защиты за каждого живого плетельщика перед ударом.
+          </small>
+        )}
       <div className="card-bottom">
         {footer ??
           (d.target === 'enemy'

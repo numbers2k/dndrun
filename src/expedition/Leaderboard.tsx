@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { dailySeed } from './engine'
-import type { Profile, Run } from './types'
+import type { ContractId, Profile, Run } from './types'
 import { Icon } from './Art'
+import { CONTRACTS, CONTRACT_IDS, DEFAULT_PARTY, partyIdentity } from './contracts'
+import { HEROES } from './data'
 export function Leaderboard({
   profile,
   onName,
@@ -10,10 +12,30 @@ export function Leaderboard({
   onName: (name: string) => void
 }) {
   const [mode, setMode] = useState<Run['mode']>('normal'),
-    [scope, setScope] = useState<'all' | 'today'>('today')
+    [rules, setRules] = useState(6),
+    [scope, setScope] = useState<'all' | 'today'>('today'),
+    [contract, setContract] = useState<ContractId>('standard'),
+    [partyKey, setPartyKey] = useState(partyIdentity(DEFAULT_PARTY))
+  const parties = [
+    ...new Set(
+      profile.records
+        .filter(
+          (h) => h.rules === rules && h.mode === mode && (h.contract ?? 'standard') === contract,
+        )
+        .map((h) => partyIdentity(h.party)),
+    ),
+  ]
+  const activePartyKey = parties.includes(partyKey)
+    ? partyKey
+    : (parties[0] ?? partyIdentity(DEFAULT_PARTY))
   const entries = profile.records
     .filter(
-      (h) => h.mode === mode && (mode !== 'daily' || scope === 'all' || h.seed === dailySeed()),
+      (h) =>
+        h.rules === rules &&
+        h.mode === mode &&
+        (h.contract ?? 'standard') === contract &&
+        partyIdentity(h.party) === activePartyKey &&
+        (mode !== 'daily' || scope === 'all' || h.seed === dailySeed()),
     )
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.cleared ?? 0) - (a.cleared ?? 0))
     .slice(0, 20)
@@ -33,6 +55,18 @@ export function Leaderboard({
         />
       </label>
       <div className="board-tabs">
+        <label className="board-version">
+          Правила{' '}
+          <select
+            aria-label="Версия правил рекордов"
+            value={rules}
+            onChange={(e) => setRules(Number(e.target.value))}
+          >
+            <option value={6}>v0.6 · свободный состав</option>
+            <option value={5}>v0.5 · архив</option>
+            <option value={4}>v0.4 · архив</option>
+          </select>
+        </label>
         {(['normal', 'hard', 'daily'] as const).map((m) => (
           <button
             key={m}
@@ -43,6 +77,37 @@ export function Leaderboard({
             {m === 'normal' ? 'Обычный' : m === 'hard' ? 'Опасный' : 'Дневной'}
           </button>
         ))}
+        <label>
+          Испытание{' '}
+          <select
+            aria-label="Испытание рекордов"
+            value={contract}
+            onChange={(e) => setContract(e.target.value as typeof contract)}
+          >
+            {CONTRACT_IDS.map((id) => (
+              <option key={id} value={id}>
+                {CONTRACTS[id].name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Отряд{' '}
+          <select
+            aria-label="Состав для сравнения"
+            value={activePartyKey}
+            onChange={(e) => setPartyKey(e.target.value)}
+          >
+            {(parties.length ? parties : [partyIdentity(DEFAULT_PARTY)]).map((key) => (
+              <option key={key} value={key}>
+                {key
+                  .split(',')
+                  .map((id) => HEROES[id as keyof typeof HEROES].role)
+                  .join(' · ')}
+              </option>
+            ))}
+          </select>
+        </label>
         {mode === 'daily' && (
           <button
             className="text-button"
@@ -61,7 +126,7 @@ export function Leaderboard({
         entries.map((h, i) => (
           <div
             className={`board-row ${i === 0 ? 'top-record' : ''}`}
-            key={h.runId + String(h.player)}
+            key={String(h.rules) + h.runId + String(h.player)}
           >
             <span className="rank">
               {i === 0 ? <Icon name="star" size={18} /> : String(i + 1).padStart(2, '0')}
@@ -93,7 +158,9 @@ export function Leaderboard({
           Стычка: 100 · элита: 250 · босс: 600. За каждый оставшийся ход до шестого: +25. Бой без
           потери здоровья: +100. Самая длинная серия разных героев: +20 за карту, максимум +200 за
           бой. Мирная остановка: 25. Награда умножается на 1 + 0,4 за каждый круг бездны; опасный
-          режим дополнительно ×1,5. Урон, лечение и повторные карты сами по себе очков не дают.
+          режим дополнительно ×1,5; условия похода — на свой объявленный множитель. Лучшее добивание
+          после связки 3 даёт до +150 за бой. Урон, лечение и повторные карты сами по себе очков не
+          дают.
         </p>
       </details>
     </div>

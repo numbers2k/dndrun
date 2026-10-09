@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { simulate } from './bot.mts'
+import { STARTERS } from '../src/expedition/data.ts'
 const reports = []
-for (const leader of ['warden', 'ranger', 'mage'] as const) {
+for (const leader of STARTERS) {
   for (const strategy of ['tactical', 'reckless'] as const) {
     let wins = 0,
       total = 0,
@@ -28,7 +29,7 @@ for (const leader of ['warden', 'ranger', 'mage'] as const) {
 console.table(reports)
 for (const r of reports.filter((r) => r.strategy === 'tactical'))
   assert.ok(r.wins > 0, `${r.leader} must be able to win`)
-for (const leader of ['warden', 'ranger', 'mage']) {
+for (const leader of STARTERS) {
   const smart = reports.find((r) => r.leader === leader && r.strategy === 'tactical')!,
     rash = reports.find((r) => r.leader === leader && r.strategy === 'reckless')!
   assert.ok(smart.meanDepth > rash.meanDepth, 'Targeting and route choices should help')
@@ -36,5 +37,5 @@ for (const leader of ['warden', 'ranger', 'mage']) {
 let hardWins = 0
 for (let i = 0; i < 100; i++)
   hardWins += simulate(`balance-${i}`, 'warden', 'tactical', 'hard').phase === 'victory' ? 1 : 0
-console.log(`Hard: ${hardWins}/100. Total: 700 complete runs.`)
+console.log(`Hard: ${hardWins}/100. Total: 1300 complete runs.`)
 assert.ok(hardWins < reports[0].wins, 'Hard mode must be harder')

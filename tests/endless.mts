@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { simulate } from './bot.mts'
+import { STARTERS } from '../src/expedition/data.ts'
 const results = []
-for (const leader of ['warden', 'ranger', 'mage'] as const) {
+for (const leader of STARTERS) {
   let entered = 0,
     second = 0,
     deepest = 0,
@@ -22,4 +23,4 @@ for (const leader of ['warden', 'ranger', 'mage'] as const) {
   assert.ok(deepest > 20)
 }
 console.table(results)
-console.log('150 endless expeditions terminated with valid scores.')
+console.log('300 endless expeditions terminated with valid scores.')

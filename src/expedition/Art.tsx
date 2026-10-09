@@ -52,6 +52,9 @@ export function Portrait({ hero, small = false }: { hero: HeroId; small?: boolea
     rogue: '#8d6f74',
     priest: '#a49773',
     bard: '#6b858c',
+    alchemist: '#7b8c68',
+    duelist: '#a08473',
+    oracle: '#8980a0',
   }
   return (
     <svg className={small ? 'portrait small' : 'portrait'} viewBox="0 0 120 140" aria-hidden="true">
@@ -109,6 +112,30 @@ export function Portrait({ hero, small = false }: { hero: HeroId; small?: boolea
           <ellipse cx="91" cy="120" rx="16" ry="19" fill="#ad875c" />
           <path d="m91 120 5-41" stroke="#806245" strokeWidth="7" />
           <path d="m87 107 2 27m5-27-2 27" stroke="#d2bc97" />
+        </>
+      )}
+      {hero === 'alchemist' && (
+        <>
+          <path d="M34 55 40 29h40l8 28-17-10H49z" fill="#617353" />
+          <path d="m83 104 7-16h12l6 16v23H83z" fill="#7e9258" stroke="#b8b994" strokeWidth="3" />
+          <path d="M88 110h16" stroke="#d4c083" strokeWidth="4" />
+          <circle cx="57" cy="120" r="8" fill="#a3ad79" />
+        </>
+      )}
+      {hero === 'duelist' && (
+        <>
+          <path d="m32 47 18-25 27 7 12 22z" fill="#845d4f" />
+          <path d="m27 125 70-52" stroke="#b9c8c4" strokeWidth="4" />
+          <path d="m27 110 17 22" stroke="#c2a879" strokeWidth="4" />
+          <path d="m59 111 26 19-3-30" fill="#57483e" />
+        </>
+      )}
+      {hero === 'oracle' && (
+        <>
+          <path d="M31 66c-5-49 58-59 61 0L76 51 60 31 43 52z" fill="#71647f" />
+          <path d="M43 65h34" stroke="#c8c0ac" strokeWidth="7" />
+          <circle cx="91" cy="114" r="15" fill="#ada5b9" opacity=".7" />
+          <path d="m91 104-5 10 5 10 5-10z" fill="#e1cc98" />
         </>
       )}
     </svg>
@@ -209,7 +236,100 @@ export function EnemyArt({ id }: { id: string }) {
   return (
     <svg className="enemy-art" viewBox="0 0 110 110" aria-hidden="true">
       <circle cx="55" cy="58" r="45" fill="currentColor" opacity=".08" />
-      {id === 'wolf' ? (
+      {[
+        'cultist',
+        'hexer',
+        'cantor',
+        'censor',
+        'mirror',
+        'hunter',
+        'herald',
+        'bomber',
+        'leech',
+        'scavenger',
+        'shieldbearer',
+        'sentinel',
+        'archer',
+        'weaver',
+        'armorer',
+      ].includes(id) ? (
+        <>
+          <path
+            d="M21 103 30 53l25-34 25 34 9 50z"
+            fill={
+              ['cultist', 'hexer', 'cantor', 'mirror', 'censor'].includes(id)
+                ? '#71677c'
+                : id === 'shieldbearer' || id === 'sentinel'
+                  ? '#698080'
+                  : '#857461'
+            }
+          />
+          <path d="m39 48 16-18 16 18-6 29H45z" fill="#29383b" />
+          <path
+            d="M45 53h5m10 0h5"
+            stroke={id === 'leech' ? '#c78b79' : '#ceb588'}
+            strokeWidth="4"
+          />
+          {['cultist', 'hexer', 'cantor', 'censor', 'mirror'].includes(id) && (
+            <>
+              <path d="M89 101V29" stroke="#a18b70" strokeWidth="4" />
+              <circle cx="89" cy="27" r="10" fill="#a395b4" />
+              <path d="m47 91 8-10 8 10-8 10z" fill="#c6b37e" />
+            </>
+          )}
+          {(id === 'shieldbearer' || id === 'sentinel' || id === 'armorer') && (
+            <>
+              <path
+                d="m13 61 25-5 18 9-5 28-16 12-19-17z"
+                fill="#52686c"
+                stroke="#bcad8b"
+                strokeWidth="3"
+              />
+              <path d="m27 69 8 17 10-17" fill="none" stroke="#b5bba0" strokeWidth="3" />
+            </>
+          )}
+          {id === 'weaver' && (
+            <>
+              <path
+                d="M13 30Q55 95 97 30M13 55Q55 90 97 55M13 78H97"
+                stroke="#9583ab"
+                strokeWidth="3"
+                fill="none"
+              />
+              <path d="m20 23 9 7-9 7m70-14-9 7 9 7" stroke="#cab9d3" strokeWidth="3" fill="none" />
+            </>
+          )}
+          {id === 'herald' && (
+            <>
+              <path
+                d="M86 106V12m0 0h21l-7 12 7 12H86"
+                stroke="#b8a27b"
+                strokeWidth="3"
+                fill="#81675a"
+              />
+            </>
+          )}
+          {(id === 'archer' || id === 'hunter') && (
+            <>
+              <path d="M85 24q35 37 0 73l4-37z" stroke="#c1a87e" fill="none" strokeWidth="3" />
+              <path d="M83 59h23" stroke="#bdc5b1" strokeWidth="3" />
+            </>
+          )}
+          {id === 'bomber' && (
+            <>
+              <circle cx="85" cy="88" r="18" fill="#a18153" />
+              <path d="m85 70 8-16" stroke="#d1b879" strokeWidth="4" />
+              <path d="m93 54-4-8 9 3" fill="#c88c68" />
+            </>
+          )}
+          {(id === 'leech' || id === 'scavenger') && (
+            <>
+              <path d="m41 65 6 12 5-10m7 0 5 10 6-12" fill="#d2c5ae" />
+              <path d="m16 99 13-24m52 0 13 24" stroke="#a09280" strokeWidth="5" />
+            </>
+          )}
+        </>
+      ) : id === 'wolf' ? (
         <>
           <path d="m21 64 11-34 18 10 16-4 18-18 4 41-18 29-33-5z" fill="#708888" />
           <path d="m36 48 7 9m26-7-7 7" stroke="#edd9a6" strokeWidth="4" />

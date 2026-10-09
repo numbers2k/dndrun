@@ -1,0 +1,224 @@
+{
+  "checkedAt": "2026-10-09",
+  "method": "Steam appdetails + appreviews; language=all; purchase_type=all. Review counts are not sales.",
+  "games": [
+    {
+      "id": 2379780,
+      "name": "Balatro",
+      "steamRelease": "20 Feb, 2024",
+      "developers": [
+        "LocalThunk"
+      ],
+      "publishers": [
+        "Playstack"
+      ],
+      "reviews": 199679,
+      "positive": 195352,
+      "description": "The poker roguelike. Balatro is a hypnotically satisfying deckbuilder where you play illegal poker hands, discover game-changing jokers, and trigger adrenaline-pumping, outrageous combos.",
+      "store": "https://store.steampowered.com/app/2379780/"
+    },
+    {
+      "id": 1966720,
+      "name": "Lethal Company",
+      "steamRelease": "23 Oct, 2023",
+      "developers": [
+        "Zeekerss"
+      ],
+      "publishers": [
+        "Zeekerss"
+      ],
+      "reviews": 511271,
+      "positive": 495689,
+      "description": "A co-op horror about scavenging at abandoned moons to sell scrap to the Company.",
+      "store": "https://store.steampowered.com/app/1966720/"
+    },
+    {
+      "id": 2881650,
+      "name": "Content Warning",
+      "steamRelease": "1 Apr, 2024",
+      "developers": [
+        "Zorro",
+        "Wilnyl",
+        "Philip",
+        "thePetHen",
+        "Skog"
+      ],
+      "publishers": [
+        "Evil Landfall?"
+      ],
+      "reviews": 163780,
+      "positive": 153587,
+      "description": "Film your friends doing scary things to become SpöökTube famous! (strongly advised to not go alone)",
+      "store": "https://store.steampowered.com/app/2881650/"
+    },
+    {
+      "id": 2835570,
+      "name": "Buckshot Roulette",
+      "steamRelease": "4 Apr, 2024",
+      "developers": [
+        "Mike Klubnika"
+      ],
+      "publishers": [
+        "CRITICAL REFLEX"
+      ],
+      "reviews": 127131,
+      "positive": 120885,
+      "description": "Play Russian roulette with a 12-gauge shotgun. Four enter. One leaves. Roll the dice with your life. Good luck!",
+      "store": "https://store.steampowered.com/app/2835570/"
+    },
+    {
+      "id": 3097560,
+      "name": "Liar's Bar",
+      "steamRelease": "2 Oct, 2024",
+      "developers": [
+        "Curve Animation"
+      ],
+      "publishers": [
+        "Curve Animation"
+      ],
+      "reviews": 56427,
+      "positive": 50511,
+      "description": "Dive into this multiplayer online experience set in a sketchy bar where the games are as dangerous as the patrons. Join a table of 4 and test your skills in Liar's Dice and Liar's Deck, where lying and bluffing are key to victory. Ready for a night at Liar's Bar?",
+      "store": "https://store.steampowered.com/app/3097560/"
+    },
+    {
+      "id": 3241660,
+      "name": "R.E.P.O.",
+      "steamRelease": "26 Feb, 2025",
+      "developers": [
+        "semiwork"
+      ],
+      "publishers": [
+        "semiwork"
+      ],
+      "reviews": 427754,
+      "positive": 410618,
+      "description": "An online co-op horror game with up to 6 players. Locate valuable, fully physics-based objects and handle them with care as you retrieve and extract to satisfy your creator's desires.",
+      "store": "https://store.steampowered.com/app/3241660/"
+    },
+    {
+      "id": 3164500,
+      "name": "Schedule I",
+      "steamRelease": "Mar 24, 2025",
+      "developers": [
+        "TVGS"
+      ],
+      "publishers": [
+        "TVGS"
+      ],
+      "reviews": 318909,
+      "positive": 311833,
+      "description": "From small-time dope pusher to kingpin - manufacture and distribute a range of drugs throughout the grungy city of Hyland Point. Expand your empire with properties, businesses, employees and more.",
+      "store": "https://store.steampowered.com/app/3164500/"
+    },
+    {
+      "id": 813230,
+      "name": "ANIMAL WELL",
+      "steamRelease": "9 May, 2024",
+      "developers": [
+        "Billy Basso"
+      ],
+      "publishers": [
+        "Bigmode"
+      ],
+      "reviews": 24726,
+      "positive": 23667,
+      "description": "Explore a dense, interconnected labyrinth, and unravel its many secrets. Collect items to manipulate your environment in surprising and meaningful ways. Encounter beautiful and unsettling creatures, as you attempt to survive what lurks in the dark. There is more than what you see.",
+      "store": "https://store.steampowered.com/app/813230/"
+    },
+    {
+      "id": 1562430,
+      "name": "DREDGE",
+      "steamRelease": "30 Mar, 2023",
+      "developers": [
+        "Black Salt Games"
+      ],
+      "publishers": [
+        "Team17"
+      ],
+      "reviews": 57341,
+      "positive": 54956,
+      "description": "DREDGE is a single-player fishing adventure with a sinister undercurrent. Sell your catch, upgrade your boat, and dredge the depths for long-buried secrets. Explore a mysterious archipelago and discover why some things are best left forgotten.",
+      "store": "https://store.steampowered.com/app/1562430/"
+    },
+    {
+      "id": 1145350,
+      "name": "Hades II",
+      "steamRelease": "25 Sep, 2025",
+      "developers": [
+        "Supergiant Games"
+      ],
+      "publishers": [
+        "Supergiant Games"
+      ],
+      "reviews": 124030,
+      "positive": 118704,
+      "description": "Battle beyond the Underworld using dark sorcery to take on the Titan of Time in this bewitching sequel to the award-winning rogue-like dungeon crawler.",
+      "store": "https://store.steampowered.com/app/1145350/"
+    },
+    {
+      "id": 3527290,
+      "name": "PEAK",
+      "steamRelease": "16 Jun, 2025",
+      "developers": [
+        "Team PEAK"
+      ],
+      "publishers": [
+        "Aggro Crab",
+        "Evil Landfall?"
+      ],
+      "reviews": 378302,
+      "positive": 357283,
+      "description": "PEAK is a co-op climbing game where the slightest mistake can spell your doom. Either solo or as a group of lost nature scouts, your only hope of rescue from a mysterious island is to scale the mountain at its center. Do you have what it takes to reach the PEAK?",
+      "store": "https://store.steampowered.com/app/3527290/"
+    },
+    {
+      "id": 1794680,
+      "name": "Vampire Survivors",
+      "steamRelease": "Oct 20, 2022",
+      "developers": [
+        "poncle"
+      ],
+      "publishers": [
+        "poncle"
+      ],
+      "reviews": 266276,
+      "positive": 261765,
+      "description": "Mow down thousands of night creatures and survive until dawn! Vampire Survivors is a gothic horror casual game with rogue-lite elements, where your choices can allow you to quickly snowball against the hundreds of monsters that get thrown at you. Be the bullet hell!",
+      "store": "https://store.steampowered.com/app/1794680/"
+    }
+  ],
+  "comparators": [
+    {
+      "id": 1201540,
+      "name": "HELLCARD",
+      "steamRelease": "1 Feb, 2024",
+      "developers": [
+        "Thing Trunk"
+      ],
+      "publishers": [
+        "Skystone Games"
+      ],
+      "reviews": 4680,
+      "positive": 4008,
+      "description": "Hellcard is a unique cooperative deck builder rogue-like game. Descend into the paper dungeons on your own, recruit computer-controlled companions or join other players' lobbies in fast-paced tactical card battles against the armies of darkness and the Archdemon himself!",
+      "store": "https://store.steampowered.com/app/1201540/"
+    },
+    {
+      "id": 1385380,
+      "name": "Across the Obelisk",
+      "steamRelease": "16 Aug, 2022",
+      "developers": [
+        "Dreamsite Games"
+      ],
+      "publishers": [
+        "Paradox Interactive",
+        "Paradox Arc"
+      ],
+      "reviews": 13109,
+      "positive": 10517,
+      "description": "Set forth in a co-op roguelite deckbuilder where every choice matters! Craft decks of breathtaking power. Journey alone or with up to three friends. Plot your party’s path to glory and face powerful enemies in deep tactical combat on your quest to save the kingdom of Senenthia in Across the Obelisk!",
+      "store": "https://store.steampowered.com/app/1385380/"
+    }
+  ]
+}

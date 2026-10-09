@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   AREAS,
   CARDS,
@@ -8,8 +8,6 @@ import {
   KIND_LABEL,
   RELICS,
   RELIC_MAP,
-  STARTERS,
-  STARTER_PARTIES,
 } from './expedition/data'
 import {
   areaIndex,
@@ -22,6 +20,7 @@ import {
   dailySeed,
   endTurn,
   eventChoice,
+  leaveEvent,
   leaveShop,
   newRun,
   persist,
@@ -33,16 +32,35 @@ import {
   recruit,
   rest,
   takeReward,
+  takeRelic,
+  comboMultiplier,
+  damageBreakdown,
   targetDamage,
+  upcomingBoss,
+  retainCard,
+  recruitVisitor,
 } from './expedition/engine'
 import { EnemyArt, Icon, Landscape, Portrait } from './expedition/Art'
 import type { Card, HeroId, Run } from './expedition/types'
 import { Leaderboard } from './expedition/Leaderboard'
 import { BOONS, OMEN_MAP } from './expedition/endless'
+import { BOSS_MAP, ENEMY_MAP, ENEMY_ROLES } from './expedition/encounters'
 import { ActionCard, Meter, Modal } from './expedition/ui'
 import './App.css'
+import { relicHint, buildPlans, recruitPreview } from './expedition/synergies'
+import { chainHint, turnOptions, turnForecast, allyEffect } from './expedition/guidance'
+import { readChallenge, runRecap, buildName, TRIALS, type Challenge } from './expedition/challenges'
+import { CONTRACTS, CONTRACT_IDS, DEFAULT_PARTY, contractUnlocked } from './expedition/contracts'
+import { actionFeedback, nextExperiment } from './expedition/experience'
+import { readSettings, writeSettings } from './expedition/settings'
+import { partyCoverage } from './expedition/roster'
 
 const modes = { normal: 'Свободный поход', daily: 'Приключение дня', hard: 'Опасный поход' }
+function countPhrase(count: number, one: string, few: string, many: string) {
+  const mod100 = count % 100,
+    mod10 = count % 10
+  return `${count} ${mod100 >= 11 && mod100 <= 14 ? many : mod10 === 1 ? one : mod10 >= 2 && mod10 <= 4 ? few : many}`
+}
 const routeIcons = {
   battle: 'sword',
   elite: 'skull',
@@ -51,19 +69,16 @@ const routeIcons = {
   event: 'eye',
   shop: 'bag',
 }
-const partyTips = {
-  warden:
-    'Защита и лечение прощают ошибки. Лина помечает врага, Бран прикрывает отряд, Мира возвращает здоровье.',
-  ranger:
-    'Метка Лины усиливает удары Рена. Яд обходит броню. Быстро устраняйте врагов, пока Бран держит строй.',
-  mage: 'Том даёт энергию и новые карты. Эли поражает сразу несколько врагов. Бран защищает тех, кто под ударом.',
-}
 function App() {
   const [profile, setProfile] = useState(readProfile),
     [run, setRun] = useState(readRun)
   const [view, setView] = useState<'home' | 'start' | 'run'>('home'),
     [mode, setMode] = useState<Run['mode']>('normal'),
-    [leader, setLeader] = useState<HeroId>('warden')
+    [draftParty, setDraftParty] = useState<HeroId[]>([...DEFAULT_PARTY]),
+    [contract, setContract] = useState<import('./expedition/types').ContractId>('standard'),
+    [startStep, setStartStep] = useState<'contract' | 'party'>('contract'),
+    [selectedSlot, setSelectedSlot] = useState(0),
+    [rosterOpen, setRosterOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
       'help' | 'deck' | 'journal' | 'replace' | 'relics' | 'leaderboard' | null
@@ -71,16 +86,26 @@ function App() {
   const [panel, setPanel] = useState<'upgrade' | 'remove' | null>(null),
     [notice, setNotice] = useState(''),
     [storageError, setStorageError] = useState(false),
-    [sound, setSound] = useState(false)
+    [sound, setSound] = useState(() => readSettings().sound)
+  const [largeText, setLargeText] = useState(() => readSettings().largeText),
+    [feedback, setFeedback] = useState<ReturnType<typeof actionFeedback>>(null),
+    [unlockNotice, setUnlockNotice] = useState('')
   const audio = useRef<AudioContext | null>(null)
+  const [challenge, setChallenge] = useState(() => readChallenge(window.location.search))
+  const [pendingChallenge, setPendingChallenge] = useState<Challenge | null>(null)
+  const [recruitSlot, setRecruitSlot] = useState<number | null>(null)
   const active = run && !['victory', 'defeat'].includes(run.phase)
+  const coverage = partyCoverage(draftParty)
   useEffect(() => {
     setStorageError(!persist(run, profile))
   }, [run, profile])
   useEffect(() => {
+    writeSettings({ sound, largeText })
+  }, [sound, largeText])
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
-  }, [view, run?.phase])
-  function tone() {
+  }, [view, run?.phase, startStep])
+  function tone(kind = 'setup', chain = 0) {
     if (!sound) return
     try {
       audio.current ??= new AudioContext()
@@ -88,9 +113,16 @@ function App() {
       void ctx.resume()
       const osc = ctx.createOscillator(),
         gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(420, ctx.currentTime)
-      osc.frequency.exponentialRampToValueAtTime(260, ctx.currentTime + 0.12)
+      osc.type = kind === 'attack' ? 'triangle' : 'sine'
+      const frequency =
+        ({ attack: 180, guard: 300, heal: 650, poison: 230, setup: 420 } as Record<string, number>)[
+          kind
+        ] ?? 420
+      osc.frequency.setValueAtTime(frequency + Math.min(9, chain) * 25, ctx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(
+        kind === 'heal' ? 850 : frequency * 0.7,
+        ctx.currentTime + 0.12,
+      )
       gain.gain.setValueAtTime(0.045, ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
       osc.connect(gain)
@@ -101,52 +133,118 @@ function App() {
       /* Audio is optional. */
     }
   }
-  function change(next: Run) {
+  function change(next: Run, targetIndex?: number) {
     const result = record(next, profile)
+    const f = actionFeedback(run, next, targetIndex)
+    setFeedback(f)
+    const discovered = result.profile.unlockedHeroes.filter(
+      (id) => !profile.unlockedHeroes.includes(id),
+    )
+    if (discovered.length)
+      setUnlockNotice(
+        `Знакомство: ${discovered.map((id) => HEROES[id].role).join(', ')} теперь доступен для будущего стартового отряда.`,
+      )
     setRun(result.run)
     setProfile(result.profile)
     setSelected(null)
     setPanel(null)
-    tone()
+    setRecruitSlot(null)
+    if (f) tone(f.kind, f.chain)
+  }
+  function playTarget(index: number) {
+    if (!run || !selected) return
+    const next = playCard(run, selected, index)
+    change(next, index)
+    if (next.phase === 'combat' && window.matchMedia('(max-width: 620px)').matches)
+      requestAnimationFrame(() =>
+        document.querySelector('.hand-toolbar')?.scrollIntoView({
+          block: 'start',
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'instant'
+            : 'smooth',
+        }),
+      )
   }
   function begin(nextMode: Run['mode']) {
+    setPendingChallenge(null)
     setMode(nextMode)
-    if (nextMode === 'daily') setLeader('warden')
+    setContract('standard')
+    setDraftParty([...DEFAULT_PARTY])
+    setStartStep(nextMode === 'daily' ? 'party' : 'contract')
+    setRosterOpen(false)
     if (active) setModal('replace')
     else setView('start')
   }
+  function chooseContract(id: import('./expedition/types').ContractId) {
+    if (!contractUnlocked(id, profile) || pendingChallenge) return
+    setContract(id)
+    if (id === 'no-healer' && draftParty.includes('priest')) {
+      const available = profile.unlockedHeroes.filter(
+        (hero) => hero !== 'priest' && !draftParty.includes(hero),
+      )
+      if (available.length) {
+        const next = [...draftParty]
+        next[next.indexOf('priest')] = available[0]
+        setDraftParty(next)
+      }
+    }
+    setStartStep('party')
+  }
+  function replacePartySlot(id: HeroId) {
+    if (!profile.unlockedHeroes.includes(id) || (contract === 'no-healer' && id === 'priest'))
+      return
+    const next = [...draftParty],
+      prior = next.indexOf(id)
+    if (prior >= 0) {
+      ;[next[selectedSlot], next[prior]] = [next[prior], next[selectedSlot]]
+    } else next[selectedSlot] = id
+    setDraftParty(next)
+  }
   function start() {
     const seed =
-      mode === 'daily'
+      pendingChallenge?.seed ??
+      (mode === 'daily'
         ? dailySeed()
-        : `trail-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`
-    change(newRun(mode === 'daily' ? 'warden' : leader, seed, mode))
+        : `trail-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`)
+    const party = pendingChallenge?.party ?? draftParty
+    change(newRun(party[0], seed, mode, party, pendingChallenge?.contract ?? contract))
     setView('run')
     setNotice('')
+    setUnlockNotice('')
+    setChallenge(null)
+    setPendingChallenge(null)
   }
   function selectCard(c: Card) {
     if (!run || !playable(run, c)) return
     const d = CARD_MAP[c.id]
-    if (d.target === 'all' || d.target === 'self') change(playCard(run, c.uid, 0))
+    if (d.target === 'all' || d.target === 'self') change(playCard(run, c.uid, 0), 0)
     else {
       setSelected(selected === c.uid ? null : c.uid)
       if (selected !== c.uid && window.matchMedia('(max-width: 620px)').matches) {
         requestAnimationFrame(() =>
           document
             .querySelector(d.target === 'ally' ? '.battlefield .team' : '.enemy-row')
-            ?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+            ?.scrollIntoView({
+              block: 'center',
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                ? 'instant'
+                : 'smooth',
+            }),
         )
       }
     }
   }
   const selectedCard = run?.combat?.hand.find((c) => c.uid === selected),
     target = selectedCard ? CARD_MAP[selectedCard.id].target : null
+  const forecast = useMemo(() => (run ? turnForecast(run) : null), [run])
   function team(compact = false) {
     if (!run) return null
     return (
       <div className={`team ${compact ? 'compact-team' : ''}`}>
         {run.party.map((h, i) => {
           const d = HEROES[h.id],
+            allyPreview =
+              selectedCard && target === 'ally' ? allyEffect(run, selectedCard, i) : null,
             incoming =
               run.phase === 'combat'
                 ? run
@@ -164,9 +262,9 @@ function App() {
           return (
             <button
               key={h.id}
-              className={`hero-unit ${h.hp <= 0 ? 'fallen' : ''} ${target === 'ally' && h.hp > 0 ? 'targetable' : ''}`}
+              className={`hero-unit ${feedback?.hero === h.id ? 'acted-unit' : ''} ${h.hp <= 0 ? 'fallen' : ''} ${forecast?.falls[i] ? 'danger-unit' : ''} ${target === 'ally' && h.hp > 0 ? 'targetable' : ''}`}
               disabled={target !== 'ally' || h.hp <= 0}
-              onClick={() => change(playCard(run, selected!, i))}
+              onClick={() => playTarget(i)}
               title={d.passive}
               aria-label={`${d.name}, ${d.role}, здоровье ${h.hp} из ${h.maxHp}${target === 'ally' ? ', применить карту' : ''}`}
             >
@@ -180,17 +278,27 @@ function App() {
                 <p>
                   {h.hp <= 0 ? (
                     'Пал · карты недоступны'
-                  ) : incoming > 0 ? (
+                  ) : run.phase === 'combat' ? (
                     <>
                       <Icon name="sword" size={13} />
-                      {incoming} входящего · {Math.max(0, incoming - h.block)} после защиты
+                      {forecast?.victory
+                        ? 'Яд завершит бой'
+                        : forecast?.falls[i]
+                          ? `Падёт в конце хода · ${forecast.wounds[i]} ран`
+                          : forecast?.wounds[i]
+                            ? `${incoming} входящего · ${forecast.wounds[i]} ран в конце хода`
+                            : 'Не потеряет здоровье в конце хода'}
                     </>
-                  ) : run.phase === 'combat' ? (
-                    'В безопасности в этом ходу'
                   ) : (
                     d.passive
                   )}
                 </p>
+                {allyPreview && (
+                  <small className="ally-preview">
+                    +{allyPreview.heal} здоровья · +{allyPreview.block} защиты →{' '}
+                    {allyPreview.wounds} ран в конце хода
+                  </small>
+                )}
               </div>
             </button>
           )
@@ -202,6 +310,35 @@ function App() {
   if (view === 'home')
     content = (
       <>
+        {challenge && (
+          <div className="challenge-invite">
+            <div>
+              <strong>Поход по приглашению</strong>
+              <p>
+                {challenge.party.map((id) => HEROES[id].role).join(' · ')} ·{' '}
+                {CONTRACTS[challenge.contract].name} · {challenge.seed}. Тот же старт, свои решения.
+              </p>
+            </div>
+            <button
+              className="primary"
+              onClick={() => {
+                setPendingChallenge(challenge)
+                setMode(challenge.mode)
+                setDraftParty([...challenge.party])
+                setContract(challenge.contract)
+                setStartStep('party')
+                setRosterOpen(false)
+                if (active) setModal('replace')
+                else setView('start')
+              }}
+            >
+              Принять вызов
+            </button>
+            <button className="text-button" onClick={() => setChallenge(null)}>
+              Закрыть
+            </button>
+          </div>
+        )}
         <section className="home-hero">
           <Landscape />
           <div className="hero-copy">
@@ -212,7 +349,7 @@ function App() {
               дорога продолжается.
             </h1>
             <p>
-              Три героя. Одна колода. Ни одного безопасного пути.
+              Три героя. Одна колода. Решает порядок карт.
               <br />
               Победите дракона — и решите, как далеко зайдёте во тьму.
             </p>
@@ -326,70 +463,180 @@ function App() {
         </button>
         <div className="section-heading">
           <div className="eyebrow">{modes[mode]}</div>
-          <h1>Кто поведёт отряд?</h1>
-          <p>Три разных подхода. Все герои доступны с самого начала.</p>
+          <h1>{startStep === 'contract' ? 'На каких условиях пойдём?' : 'Кто пойдёт с вами?'}</h1>
+          <p>
+            {startStep === 'contract'
+              ? 'Начните с обычного похода. Победы открывают новые ограничения, а не прибавки к силе.'
+              : 'Три героя, общая колода. Каждый приносит четыре стартовые карты и свою особенность.'}
+          </p>
         </div>
-        <div className="party-options">
-          {STARTERS.map((id) => (
-            <button
-              className={`party-choice ${leader === id ? 'chosen' : ''}`}
-              key={id}
-              disabled={mode === 'daily' && id !== 'warden'}
-              onClick={() => setLeader(id)}
-              aria-pressed={leader === id}
-            >
-              <div className="party-portraits">
-                {STARTER_PARTIES[id].map((h) => (
-                  <Portrait key={h} hero={h} />
-                ))}
-              </div>
-              <div className="eyebrow">
-                {id === 'warden'
-                  ? 'РЕКОМЕНДУЕМ ДЛЯ ПЕРВОГО ПОХОДА'
-                  : id === 'ranger'
-                    ? 'ТОЧНОСТЬ И ЯД'
-                    : 'ЭНЕРГИЯ И ЗАКЛИНАНИЯ'}
-              </div>
-              <h2>{HEROES[id].title}</h2>
-              <div className="party-names">
-                {STARTER_PARTIES[id].map((h) => HEROES[h].role).join(' · ')}
-              </div>
-              <p>{partyTips[id as keyof typeof partyTips]}</p>
-              <div className="starter-relic">
-                <Icon
-                  name={
-                    RELIC_MAP[
-                      id === 'warden' ? 'lantern' : id === 'ranger' ? 'satchel' : 'hourglass'
-                    ].icon
-                  }
-                  size={18}
-                />
-                {
-                  RELIC_MAP[id === 'warden' ? 'lantern' : id === 'ranger' ? 'satchel' : 'hourglass']
-                    .text
-                }
-              </div>
-            </button>
-          ))}
-        </div>
+        {startStep === 'contract' ? (
+          <div className="contract-grid">
+            {CONTRACT_IDS.map((id) => {
+              const d = CONTRACTS[id],
+                available = contractUnlocked(id, profile)
+              return (
+                <button
+                  key={id}
+                  className={`choice contract-choice ${id === contract ? 'chosen' : ''}`}
+                  disabled={!available}
+                  onClick={() => chooseContract(id)}
+                >
+                  <div className="eyebrow">{available ? `ОЧКИ ×${d.bonus}` : 'ЗАКРЫТО'}</div>
+                  <h2>{d.name}</h2>
+                  <p>{d.description}</p>
+                  <small>
+                    {available
+                      ? 'Выбрать условия →'
+                      : id === 'no-healer' && profile.wins > 0
+                        ? 'Встретьте хотя бы одного нового спутника'
+                        : d.unlock}
+                  </small>
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="contract-summary">
+              <strong>
+                {CONTRACTS[contract].name} · очки ×{CONTRACTS[contract].bonus}
+              </strong>
+              <p>{CONTRACTS[contract].description}</p>
+              {mode !== 'daily' && !pendingChallenge && (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setStartStep('contract')
+                    setRosterOpen(false)
+                  }}
+                >
+                  ← Изменить условия
+                </button>
+              )}
+            </div>
+            <div className="draft-party">
+              {draftParty.map((id, i) => (
+                <article
+                  key={i}
+                  className={`draft-hero ${rosterOpen && i === selectedSlot ? 'chosen' : ''}`}
+                >
+                  <Portrait hero={id} />
+                  <h2>{HEROES[id].role}</h2>
+                  <p>{HEROES[id].passive}</p>
+                  <small>
+                    {HEROES[id].hp} здоровья · {i + 1}-е место
+                  </small>
+                  {rosterOpen && (
+                    <button
+                      className="secondary"
+                      aria-pressed={i === selectedSlot}
+                      onClick={() => setSelectedSlot(i)}
+                    >
+                      Заменить {HEROES[id].name}
+                    </button>
+                  )}
+                  <details>
+                    <summary>Стартовые карты</summary>
+                    <p>
+                      {[
+                        HEROES[id].cards[0],
+                        HEROES[id].cards[0],
+                        HEROES[id].cards[1],
+                        HEROES[id].cards[2],
+                      ]
+                        .map((c) => CARD_MAP[c].name)
+                        .join(' · ')}
+                    </p>
+                  </details>
+                </article>
+              ))}
+            </div>
+            <p className="muted">
+              Снаряжение для любого состава: Походный фонарь — 4 защиты каждому в первый ход. Страж
+              / Следопыт / Целитель — рекомендуемый первый состав.
+            </p>
+            <p className="roster-coverage" role="status">
+              В стартовых картах:{' '}
+              {countPhrase(coverage.block, 'карта защиты', 'карты защиты', 'карт защиты')} ·{' '}
+              {countPhrase(coverage.healing, 'карта лечения', 'карты лечения', 'карт лечения')}.
+              {!coverage.block && ' В бою нет защиты картами.'}
+              {coverage.block === 1 && ' Защиты картами мало.'}
+              {!coverage.healing && ' Лечение доступно только в пути.'}
+            </p>
+            {mode !== 'daily' && !pendingChallenge && (
+              <button className="secondary" onClick={() => setRosterOpen(!rosterOpen)}>
+                {rosterOpen
+                  ? 'Готово'
+                  : `Изменить отряд · открыто ${profile.unlockedHeroes.length}/9`}
+              </button>
+            )}
+            {rosterOpen && (
+              <section className="roster-editor">
+                <h3>Кто заменит {HEROES[draftParty[selectedSlot]].name}?</h3>
+                <p>
+                  Знакомство открывает героя для будущих стартов. Брать его в текущий отряд не
+                  обязательно. Повтор героя меняет места; бонуса за первое место нет.
+                </p>
+                <div className="roster-grid">
+                  {(Object.keys(HEROES) as HeroId[]).map((id) => {
+                    const known = profile.unlockedHeroes.includes(id),
+                      forbidden = contract === 'no-healer' && id === 'priest'
+                    return (
+                      <button
+                        className={`roster-choice ${draftParty.includes(id) ? 'chosen' : ''}`}
+                        key={id}
+                        disabled={!known || forbidden}
+                        onClick={() => replacePartySlot(id)}
+                      >
+                        <Portrait hero={id} small />
+                        <strong>{HEROES[id].role}</strong>
+                        <p>{HEROES[id].passive}</p>
+                        <small>
+                          {forbidden
+                            ? 'Запрещён условиями похода'
+                            : !known
+                              ? 'Встретьте в пути или среди рекрутов'
+                              : draftParty.includes(id)
+                                ? 'Уже в отряде · поменять местами'
+                                : 'Выбрать'}
+                        </small>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+          </>
+        )}
         {mode === 'daily' && (
           <p className="muted">В приключении дня отряд фиксирован для всех игроков.</p>
         )}
-        <label className="name-field">
-          Ваше имя в таблице рекордов
-          <input
-            maxLength={24}
-            value={profile.nickname}
-            placeholder="Странник"
-            onChange={(e) => setProfile({ ...profile, nickname: e.target.value })}
-          />
-        </label>
-        <div className="start-bottom">
-          <span>Победите трёх боссов. Затем вернитесь с рекордом или продолжите в бездну.</span>
-          <button className="primary" onClick={start}>
-            В путь <Icon name="arrow" size={18} />
-          </button>
-        </div>
+        {pendingChallenge && (
+          <p className="warning">
+            Приглашение: {pendingChallenge.seed}. Состав и условия фиксированы. Незнакомые герои
+            доступны только для этой попытки; коллекция не открывается ссылкой.
+          </p>
+        )}
+        {startStep === 'party' && (
+          <label className="name-field">
+            Ваше имя в таблице рекордов
+            <input
+              maxLength={24}
+              value={profile.nickname}
+              placeholder="Странник"
+              onChange={(e) => setProfile({ ...profile, nickname: e.target.value })}
+            />
+          </label>
+        )}
+        {startStep === 'party' && (
+          <div className="start-bottom">
+            <span>Победите трёх боссов. Затем вернитесь с рекордом или продолжите в бездну.</span>
+            <button className="primary" onClick={start}>
+              В путь <Icon name="arrow" size={18} />
+            </button>
+          </div>
+        )}
       </section>
     )
   else if (run) {
@@ -413,26 +660,42 @@ function App() {
           </section>
           <div className="route-options">
             {run.nodes.map((n) => (
-              <button
-                className={`route-node ${n.kind}`}
-                key={n.id}
-                onClick={() => change(chooseNode(run, n.id))}
-              >
-                <span className="route-icon">
-                  <Icon name={routeIcons[n.kind]} size={28} />
-                </span>
-                <div className="eyebrow">{KIND_LABEL[n.kind]}</div>
-                <h2>{n.name}</h2>
-                <p>{n.description}</p>
-                <span className="route-go">
-                  {n.kind === 'rest'
-                    ? 'Остановиться'
-                    : n.kind === 'shop'
-                      ? 'Заглянуть'
-                      : 'Отправиться'}{' '}
-                  <Icon name="arrow" size={17} />
-                </span>
-              </button>
+              <div className="route-choice" key={n.id}>
+                <button
+                  className={`route-node ${n.kind}`}
+                  onClick={() => change(chooseNode(run, n.id))}
+                >
+                  <span className="route-icon">
+                    <Icon name={routeIcons[n.kind]} size={28} />
+                  </span>
+                  <div className="eyebrow">{KIND_LABEL[n.kind]}</div>
+                  <h2>{n.name}</h2>
+                  <p>{n.description}</p>
+                  <span className="route-go">
+                    {n.kind === 'rest'
+                      ? 'Остановиться'
+                      : n.kind === 'shop'
+                        ? 'Заглянуть'
+                        : 'Отправиться'}{' '}
+                    <Icon name="arrow" size={17} />
+                  </span>
+                </button>
+                {n.trial && (
+                  <details className="trial-offer">
+                    <summary>Испытание · {TRIALS[n.trial].name}</summary>
+                    <p>{TRIALS[n.trial].goal}. Врагам +2 к атаке.</p>
+                    <small>
+                      Успех: +15 монет и +80 очков × множитель. Провал: обычная награда.
+                    </small>
+                    <button
+                      className="secondary"
+                      onClick={() => change(chooseNode(run, n.id, true))}
+                    >
+                      Идти с испытанием
+                    </button>
+                  </details>
+                )}
+              </div>
             ))}
           </div>
           <h3 className="subheading">
@@ -458,6 +721,38 @@ function App() {
             </div>
             <span className="muted">Устраните всех врагов</span>
           </div>
+          {b.turn >= 7 && (
+            <p className="warning">
+              Затяжной бой:{' '}
+              {b.turn === 7
+                ? 'со следующего хода враги усилят атаки на 2 за каждый новый ход.'
+                : `атаки врагов уже усилены на ${Math.max(0, b.turn - 7) * 2}. Следующий ход добавит ещё 2.`}
+            </p>
+          )}
+          {b.rule && (
+            <div className="boss-rule">
+              <Icon name="skull" size={20} />
+              <div>
+                <strong>
+                  {BOSS_MAP[b.enemies.find((e) => BOSS_MAP[e.id])!.id].name} · правило боя
+                </strong>
+                <p>{BOSS_MAP[b.enemies.find((e) => BOSS_MAP[e.id])!.id].text}</p>
+              </div>
+            </div>
+          )}
+          {b.trial && (
+            <div className="trial-active">
+              <strong>Испытание · {TRIALS[b.trial].name}</strong>
+              <span>{TRIALS[b.trial].goal} · врагам +2 к атаке</span>
+              <small>
+                {b.trial === 'chain'
+                  ? `Лучшая связка: ${b.maxChain}/4`
+                  : b.trial === 'swift'
+                    ? `Ход ${b.turn}/3`
+                    : `Получено ран: ${b.damageTaken}`}
+              </small>
+            </div>
+          )}
           {run.depth === 1 && !profile.tutorialDone && (
             <div className="coach">
               <Icon name={selected ? 'arrow' : b.turn > 1 ? 'shield' : 'eye'} />
@@ -473,7 +768,11 @@ function App() {
                   ? target === 'ally'
                     ? 'Нажмите на героя отряда, чтобы дать ему защиту или лечение.'
                     : 'Нажмите на врага, чтобы применить карту.'
-                  : 'Выберите карту внизу. Число в её углу — цена в энергии. Защитите героя под ударом или устраните атакующего.'}
+                  : b.played === 0 && b.turn === 1
+                    ? 'Выберите карту внизу, затем цель. Число в углу — цена из 3 энергии. Враги действуют после «Завершить ход».'
+                    : b.chain >= 2
+                      ? 'Вы уже чередуете героев. Следующий другой герой усилит атаку и может дать карту. Защита исчезает в начале нового хода.'
+                      : 'Устранение врага отменяет его атаку. Защитите героя, который потеряет здоровье, или закончите ход, когда готовы.'}
               </p>
               <button
                 className="icon-button"
@@ -492,7 +791,7 @@ function App() {
                   key={e.uid}
                   className={`enemy-unit ${e.hp <= 0 ? 'fallen' : ''} ${target === 'enemy' && e.hp > 0 ? 'targetable' : ''}`}
                   disabled={target !== 'enemy' || e.hp <= 0}
-                  onClick={() => change(playCard(run, selected!, i))}
+                  onClick={() => playTarget(i)}
                   aria-label={`${e.name}, здоровье ${e.hp}${target === 'enemy' ? ', применить карту' : ''}`}
                 >
                   <div className={`intent ${e.intent.damage === 0 ? 'preparing' : ''}`}>
@@ -507,20 +806,30 @@ function App() {
                         <strong>
                           {e.intent.damage
                             ? e.intent.damage + Math.max(0, b.turn - 7) * 2
-                            : 'Готовится'}
+                            : e.intent.kind === 'support'
+                              ? 'Поддержка'
+                              : e.intent.kind === 'curse'
+                                ? 'Проклятие'
+                                : 'Подготовка'}
                         </strong>
                         <span>
                           {e.intent.damage
                             ? `→ ${e.intent.target === -1 ? 'весь отряд' : HEROES[run.party[e.intent.target].id].name}`
-                            : 'к прыжку'}
+                            : e.intent.label}
                         </span>
                       </>
                     )}
                   </div>
                   <EnemyArt id={e.id} />
                   <h3>{e.name}</h3>
+                  <span className="enemy-trait" title={ENEMY_MAP[e.id]?.trait}>
+                    {ENEMY_ROLES[e.id]}
+                  </span>
                   <Meter value={e.hp} max={e.maxHp} shield={e.block} />
                   <div className="statuses">
+                    {forecast?.defeated[i] && (
+                      <span className="poison-preview">Погибнет до ответной атаки</span>
+                    )}
                     {target === 'enemy' &&
                       selectedCard &&
                       CARD_MAP[selectedCard.id].damage &&
@@ -539,27 +848,96 @@ function App() {
                         Уязвимость {e.vulnerable}
                       </span>
                     )}
-                    {e.intent.block > 0 && <span>Каменный щит</span>}
+                    {e.intent.kind === 'ritual' && (
+                      <span>Прервать: {Math.max(0, 10 - (e.damageThisTurn ?? 0))} ран</span>
+                    )}
                   </div>
+                  {selectedCard && damageBreakdown(run, selectedCard, i) && (
+                    <small
+                      className="damage-formula"
+                      title="После каждого множителя урон округляется вниз. Здоровье ограничивает фактические раны; избыток может дать бонус добивания."
+                    >
+                      Сила {damageBreakdown(run, selectedCard, i)!.power} × связка{' '}
+                      {damageBreakdown(run, selectedCard, i)!.multiplier} × метка{' '}
+                      {damageBreakdown(run, selectedCard, i)!.vulnerable} − броня{' '}
+                      {damageBreakdown(run, selectedCard, i)!.armor}
+                      {' → '}
+                      {damageBreakdown(run, selectedCard, i)!.impact} силы удара
+                      {damageBreakdown(run, selectedCard, i)!.finisher > 0 && (
+                        <>
+                          {' '}
+                          · добивание +{damageBreakdown(run, selectedCard, i)!.finisher} к бонусу
+                          боя
+                        </>
+                      )}
+                    </small>
+                  )}
                 </button>
               ))}
             </div>
+            <details className="encounter-guide">
+              <summary>Особенности врагов</summary>
+              {b.enemies
+                .filter((e) => e.hp > 0 && ENEMY_MAP[e.id])
+                .map((e) => (
+                  <p key={e.uid}>
+                    <strong>{e.name}: </strong>
+                    {ENEMY_MAP[e.id].trait}
+                  </p>
+                ))}
+            </details>
             <div className="team-caption">
               ВАШ ОТРЯД <span>Выберите героя для защиты или лечения</span>
             </div>
             {team()}
           </div>
           <section className="hand">
+            {feedback && (
+              <div
+                key={`${b.turn}-${b.played}`}
+                className={`action-feedback ${feedback.kind} ${feedback.chain >= 3 ? 'strong-combo' : ''}`}
+                role="status"
+              >
+                <strong>{feedback.title}</strong>
+                <span>{feedback.detail}</span>
+              </div>
+            )}
             <div className="chain-meter">
               <Icon name="spark" size={18} />
-              <strong>Связка ×{b.chain}</strong>
-              <span>
-                {b.lastHero
-                  ? `После ${HEROES[b.lastHero].name} сыграйте карту другого героя.`
-                  : 'Чередуйте героев в серии карт.'}{' '}
-                3 карты → добор · 5 → энергия (по разу за ход)
-              </span>
+              <strong>
+                Связка {b.chain} · урон ×{comboMultiplier(run)}
+              </strong>
+              <span>{chainHint(run)}</span>
+              <details className="chain-rules">
+                <summary>Правила серии</summary>
+                <p>
+                  3 → ×1,25 и добор · 5 → ×1,5 и энергия · 7 → ×1,75 · 9 → ×2. Добор и энергия — раз
+                  за ход. Новый ход сбрасывает серию.
+                  {run.relics.includes('conductor') && ' Камертон: ещё +0,25 с третьей карты.'}
+                </p>
+              </details>
             </div>
+            {(b.finisher ?? 0) > 0 && (
+              <p className="finisher-status" role="status">
+                Завершающий удар: {b.finisher}/150 к очкам боя. Учитывается лучший за бой.
+              </p>
+            )}
+            {(b.poisonRelay || b.guardRelay) && (
+              <div className="primed-bonuses" role="status">
+                {b.poisonRelay && (
+                  <span>
+                    Проводник яда: +{b.poisonRelay.bonus} к атаке героя кроме{' '}
+                    {HEROES[b.poisonRelay.hero].name}
+                  </span>
+                )}
+                {b.guardRelay && (
+                  <span>
+                    Клятва щита: +{b.guardRelay.bonus} к атаке героя кроме{' '}
+                    {HEROES[b.guardRelay.hero].name}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="hand-toolbar">
               <div className="energy">
                 <Icon name="spark" />
@@ -585,21 +963,66 @@ function App() {
                 Завершить ход <Icon name="arrow" size={17} />
               </button>
             </div>
+            <p className="turn-options">
+              {turnOptions(run).playable > 0
+                ? `Доступно карт для розыгрыша: ${turnOptions(run).playable}${turnOptions(run).free ? `, бесплатных: ${turnOptions(run).free}` : ''}. Остаток энергии не переносится.`
+                : 'Доступных карт нет. Завершите ход: враги ответят, затем вы получите новую руку и энергию.'}
+            </p>
+            {forecast && (
+              <p
+                className={`turn-forecast ${forecast.falls.some(Boolean) ? 'danger-forecast' : ''}`}
+              >
+                {forecast.victory
+                  ? 'Завершение хода: яд добьёт врагов, ответных атак не будет.'
+                  : `Завершение хода сейчас: отряд потеряет ${forecast.wounds.reduce((n, x) => n + x, 0)} здоровья${
+                      forecast.falls.some(Boolean)
+                        ? ` · падут: ${run.party
+                            .filter((_, i) => forecast.falls[i])
+                            .map((h) => HEROES[h.id].name)
+                            .join(', ')}`
+                        : ''
+                    }.`}
+              </p>
+            )}
             <div className="hand-cards">
               {b.hand.map((c) => (
-                <ActionCard
-                  key={c.uid}
-                  card={c}
-                  onClick={() => selectCard(c)}
-                  disabled={!playable(run, c)}
-                  selected={selected === c.uid}
-                  context={run}
-                />
+                <div className="hand-slot" key={c.uid}>
+                  <ActionCard
+                    key={c.uid}
+                    card={c}
+                    onClick={() => selectCard(c)}
+                    disabled={!playable(run, c)}
+                    selected={selected === c.uid}
+                    context={run}
+                  />
+                  {b.retainReady && !CARD_MAP[c.id].junk && (
+                    <button
+                      className="retain-button"
+                      aria-pressed={b.retained === c.uid}
+                      onClick={() => {
+                        setRun(retainCard(run, c.uid))
+                        setSelected(null)
+                      }}
+                    >
+                      {b.retained === c.uid
+                        ? 'Оставлена на следующий ход'
+                        : 'Оставить на следующий ход'}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             <div className="battle-bottom">
               <span>
                 Колода {b.draw.length} · Сброс {b.discard.length} · Исчезло {b.exhausted.length}
+                {run.rules >= 5 && <small> · Каждый экземпляр карты — один раз за ход</small>}
+                {run.rules >= 6 && (
+                  <small>
+                    {' '}
+                    · Дополнительный добор {b.bonusDraw ?? 0}/4 за ход (карты, связка и Провидец
+                    вместе)
+                  </small>
+                )}
               </span>
               <details>
                 <summary>История боя</summary>
@@ -628,14 +1051,52 @@ function App() {
               {rw.nodeKind === 'boss' ? ' · Отряд восстановил силы.' : ''}
             </p>
           </div>
+          {feedback && (
+            <div className={`action-feedback ${feedback.kind}`} role="status">
+              <strong>{feedback.title}</strong>
+              <span>{feedback.detail}</span>
+            </div>
+          )}
           <div className="score-breakdown">
             <strong>+{run.lastScore.total} очков</strong>
             <span>
               Бой {run.lastScore.base} · темп {run.lastScore.speed} · без ран{' '}
               {run.lastScore.flawless} · связка {run.lastScore.combo}
+              {run.lastScore.finisher !== undefined && ` · добивание ${run.lastScore.finisher}`}
             </span>
             <small>Множитель круга и режима уже учтён</small>
           </div>
+          {rw.trial && (
+            <p className={rw.trial.success ? 'trial-success' : 'muted'}>
+              {TRIALS[rw.trial.id].name}:{' '}
+              {rw.trial.success
+                ? 'выполнено · +15 монет включены в награду · дополнительные очки за испытание уже в общем счёте'
+                : 'условие не выполнено · обычная награда сохранена'}
+            </p>
+          )}
+          <p className="reward-step">
+            {rw.relicChoices?.length
+              ? 'Шаг 1 из 2 · выберите реликвию. После выбора появятся карты и спутник.'
+              : 'Выберите карту или сохраните колоду компактной. Спутник — необязательный выбор.'}
+          </p>
+          {!!rw.relicChoices?.length && (
+            <>
+              <h3 className="subheading">
+                Выберите реликвию <small>Как изменится ваша сборка?</small>
+              </h3>
+              <div className="relic-choices">
+                {rw.relicChoices.map((id) => (
+                  <button key={id} className="choice" onClick={() => change(takeRelic(run, id))}>
+                    <Icon name={RELIC_MAP[id].icon} size={28} />
+                    <strong>{RELIC_MAP[id].name}</strong>
+                    <p>{RELIC_MAP[id].text}</p>
+                    <small className="synergy-hint">{relicHint(run, id)}</small>
+                    <span>Забрать</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {rw.relic && (
             <div className="relic-reward">
               <Icon name={RELIC_MAP[rw.relic].icon} size={28} />
@@ -646,8 +1107,9 @@ function App() {
               <span>Получено</span>
             </div>
           )}
-          {rw.recruit && (
-            <div className="recruit">
+          {rw.recruit && !rw.relicChoices?.length && (
+            <details className="recruit recruit-review">
+              <summary>{HEROES[rw.recruit].name} хочет присоединиться · сравнить спутников</summary>
               <Portrait hero={rw.recruit} small />
               <div>
                 <h3>{HEROES[rw.recruit].name} хочет присоединиться</h3>
@@ -657,19 +1119,34 @@ function App() {
                 </p>
                 <div className="recruit-actions">
                   {run.party.map((h, i) => (
-                    <button
-                      className="secondary"
-                      key={h.id}
-                      onClick={() => change(recruit(run, i))}
-                    >
-                      Вместо {HEROES[h.id].name}
+                    <button className="secondary" key={h.id} onClick={() => setRecruitSlot(i)}>
+                      Сравнить с {HEROES[h.id].name}
                     </button>
                   ))}
                 </div>
+                {recruitSlot !== null &&
+                  (() => {
+                    const preview = recruitPreview(run, recruitSlot, rw.recruit!)!
+                    return (
+                      <div className="recruit-comparison">
+                        <p>
+                          Уйдёт {preview.old}: потеряете {preview.lost} карт, из них улучшенных —{' '}
+                          {preview.upgraded}. Придут 4 базовые карты: {preview.newCards.join(', ')}.
+                          Реликвии сохранятся, выбор карт награды обновится.
+                        </p>
+                        <button
+                          className="secondary"
+                          onClick={() => change(recruit(run, recruitSlot))}
+                        >
+                          Принять {HEROES[rw.recruit!].name} вместо {preview.old}
+                        </button>
+                      </div>
+                    )
+                  })()}
               </div>
-            </div>
+            </details>
           )}
-          {
+          {!rw.relicChoices?.length && (
             <>
               <h3 className="subheading">
                 Добавьте одну карту <small>Можно пропустить, чтобы чаще брать лучшие карты</small>
@@ -679,15 +1156,17 @@ function App() {
                   <ActionCard
                     key={c.uid}
                     card={c}
+                    disabled={!!rw.relicChoices?.length}
                     onClick={() => change(takeReward(run, c.uid))}
                     footer="Добавить в колоду"
                   />
                 ))}
               </div>
             </>
-          }
+          )}
           <button
             className={run.depth % 15 === 0 ? 'primary' : 'secondary'}
+            disabled={!!rw.relicChoices?.length}
             onClick={() => change(takeReward(run, null))}
           >
             {run.depth % 15 === 0 ? 'К границе бездны' : 'Пропустить карту и идти дальше'}
@@ -712,8 +1191,8 @@ function App() {
           <div className="endless-warning">
             <Icon name="skull" />
             <p>
-              Следующий круг: здоровье врагов ×{Math.pow(1.22, run.depth / 15).toFixed(2)}, атаки +
-              {(run.depth / 15) * 2}, новое случайное знамение. Очки ×
+              Следующий круг: здоровье врагов ×{Math.pow(1.3, run.depth / 15).toFixed(2)}, атаки +
+              {(run.depth / 15) * 3}, новое случайное знамение. Очки ×
               {(1 + (run.depth / 15) * 0.4).toFixed(1)}. Отряд получит не менее 75% здоровья и 40
               монет.
             </p>
@@ -774,6 +1253,7 @@ function App() {
                       key={c.uid}
                       onClick={() => change(rest(run, 'upgrade', c.uid))}
                       footer="Улучшить"
+                      upgradePreview
                     />
                   ))}
               </div>
@@ -812,6 +1292,12 @@ function App() {
       )
     else if (run.phase === 'event') {
       const e = EVENTS[run.eventId]
+      const eventCost =
+        ({ 1: 25, 3: 20, 5: 15, 8: 25, 9: 15, 11: 20 } as Record<number, number>)[run.eventId] ?? 0
+      const choices =
+        run.eventId === 9
+          ? run.shopCards
+          : run.deck.filter((c) => ![3, 10].includes(run.eventId) || canUpgrade(c))
       phase = (
         <section className="decision-screen event-screen">
           <div className="result-icon">
@@ -822,22 +1308,114 @@ function App() {
             <h1>{e.name}</h1>
             <p>{e.text}</p>
           </div>
-          <div className="event-options">
-            <button
-              className="choice"
-              disabled={run.eventId === 1 && run.gold < 25}
-              onClick={() => change(eventChoice(run, 'a'))}
-            >
-              <h3>{e.a}</h3>
-              <p>{e.aText}</p>
-              <Icon name="arrow" />
+          {run.eventId === 4 && run.visitor && (
+            <div className="recruit">
+              <Portrait hero={run.visitor} />
+              <div>
+                <h3>
+                  {HEROES[run.visitor].name} · {HEROES[run.visitor].role}
+                </h3>
+                <p>{HEROES[run.visitor].passive}</p>
+                <div className="recruit-actions">
+                  {run.party.map((h, i) => (
+                    <button className="secondary" key={h.id} onClick={() => setRecruitSlot(i)}>
+                      Сравнить с {HEROES[h.id].name}
+                    </button>
+                  ))}
+                </div>
+                {recruitSlot !== null &&
+                  (() => {
+                    const preview = recruitPreview(run, recruitSlot, run.visitor!)!
+                    return (
+                      <div className="recruit-comparison">
+                        <p>
+                          Уйдёт {preview.old}: потеряете {preview.lost} карт, из них улучшенных —{' '}
+                          {preview.upgraded}. Придут 4 базовые карты: {preview.newCards.join(', ')}.
+                          Реликвии сохранятся.
+                        </p>
+                        <button
+                          className="secondary"
+                          onClick={() => change(recruitVisitor(run, recruitSlot))}
+                        >
+                          Принять {HEROES[run.visitor!].name} вместо {preview.old}
+                        </button>
+                      </div>
+                    )
+                  })()}
+                <details>
+                  <summary>Карты нового спутника</summary>
+                  <div className="catalog">
+                    {HEROES[run.visitor].cards.map((id) => (
+                      <ActionCard key={id} card={{ id, uid: id, upgraded: false }} />
+                    ))}
+                  </div>
+                </details>
+              </div>
+            </div>
+          )}
+          {panel && [3, 6, 9, 10].includes(run.eventId) ? (
+            <>
+              <h3 className="subheading">Выберите карту</h3>
+              <div className="catalog">
+                {choices.map((c) => (
+                  <ActionCard
+                    key={c.uid}
+                    card={c}
+                    onClick={() => change(eventChoice(run, 'a', c.uid))}
+                    upgradePreview={[3, 10].includes(run.eventId)}
+                    footer={
+                      run.eventId === 3
+                        ? 'Перековать · 20 монет'
+                        : run.eventId === 6
+                          ? 'Удалить · получить 10 монет'
+                          : run.eventId === 10
+                            ? 'Улучшить · Пепел навсегда в колоду'
+                            : 'Выучить · 15 монет'
+                    }
+                  />
+                ))}
+              </div>
+              <button className="secondary" onClick={() => setPanel(null)}>
+                Назад
+              </button>
+            </>
+          ) : (
+            <div className="event-options">
+              {run.eventId !== 4 && (
+                <button
+                  className="choice"
+                  disabled={
+                    run.gold < eventCost ||
+                    (run.eventId === 6 && run.deck.length <= 6) ||
+                    ([3, 10].includes(run.eventId) && !choices.length)
+                  }
+                  onClick={() =>
+                    [3, 6, 9, 10].includes(run.eventId)
+                      ? setPanel('upgrade')
+                      : change(eventChoice(run, 'a'))
+                  }
+                >
+                  <h3>{e.a}</h3>
+                  <p>{e.aText}</p>
+                  <Icon name="arrow" />
+                </button>
+              )}
+              <button
+                className="choice"
+                disabled={run.eventId === 11 && run.gold < 20}
+                onClick={() => change(eventChoice(run, 'b'))}
+              >
+                <h3>{e.b}</h3>
+                <p>{e.bText}</p>
+                <Icon name="arrow" />
+              </button>
+            </div>
+          )}
+          {run.eventId === 11 && (
+            <button className="text-button" onClick={() => change(leaveEvent(run))}>
+              Уйти без сделки
             </button>
-            <button className="choice" onClick={() => change(eventChoice(run, 'b'))}>
-              <h3>{e.b}</h3>
-              <p>{e.bText}</p>
-              <Icon name="arrow" />
-            </button>
-          </div>
+          )}
           {team(true)}
         </section>
       )
@@ -925,6 +1503,22 @@ function App() {
                 ? 'Вы вернулись из темноты. Результат сохранён в таблице этого браузера.'
                 : 'Попробуйте раньше устранять атакующих врагов, прикрывать слабых героев и отдыхать перед боссом.'}
             </p>
+            {run.phase === 'defeat' && b && (
+              <div className="defeat-review">
+                <strong>
+                  {b.name} · последний ход {b.turn}
+                </strong>
+                <p>Последние события боя:</p>
+                <ol>
+                  {b.log
+                    .slice(0, 4)
+                    .reverse()
+                    .map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                </ol>
+              </div>
+            )}
             <div className="stats">
               <div>
                 <strong>
@@ -955,6 +1549,25 @@ function App() {
                   : 'Результат сохранён в локальной таблице'}
               </small>
             </div>
+            <div className="run-recap">
+              <strong>{buildName(run)}</strong>
+              {run.feats && (
+                <p>
+                  Пиковый урон {run.feats.bestHit} · связка {run.feats.bestChain}
+                  <br />
+                  Прервано ритуалов {run.feats.interrupts} · выполнено испытаний {run.feats.trials}
+                </p>
+              )}
+              <small>
+                {run.seed} · {modes[run.mode]} · {CONTRACTS[run.contract].name}
+                <br />
+                Старт:{' '}
+                {(run.startParty ?? run.party.map((h) => h.id))
+                  .map((id) => HEROES[id].role)
+                  .join(' / ')}
+              </small>
+              <p>{nextExperiment(run, profile)}</p>
+            </div>
             <div className="final-actions">
               <button className="secondary" onClick={() => setModal('leaderboard')}>
                 <Icon name="star" size={18} />
@@ -969,7 +1582,7 @@ function App() {
               <button
                 className="text-button"
                 onClick={() => {
-                  const text = `dndrun · ${modes[run.mode]} · ${run.phase === 'victory' ? 'Победа!' : `${run.cleared} узлов`} · ${run.score} очков · ${run.seed}`
+                  const text = runRecap(run, window.location.href)
                   void navigator.clipboard?.writeText(text).then(
                     () => setNotice('Результат скопирован — можно отправить друзьям.'),
                     () => setNotice(text),
@@ -977,7 +1590,7 @@ function App() {
                   if (!navigator.clipboard) setNotice(text)
                 }}
               >
-                Поделиться результатом
+                Скопировать результат и вызов другу
               </button>
             </div>
             {notice && <p role="status">{notice}</p>}
@@ -1035,6 +1648,17 @@ function App() {
             </button>
           ))}
         </div>
+        {run.phase === 'route' && (
+          <details className="boss-forecast" open>
+            <summary>
+              Босс на остановке {Math.ceil((run.depth + 1) / 5) * 5}: {upcomingBoss(run).name}
+            </summary>
+            <p>{upcomingBoss(run).text}</p>
+            <small>
+              Подготовьте колоду и покупки заранее. После пятой остановки области — новая награда.
+            </small>
+          </details>
+        )}
         {run.omen && (
           <div className="omen">
             <Icon name="skull" size={18} />
@@ -1053,11 +1677,17 @@ function App() {
           </div>
         )}
         {phase}
+        {run.pact && (
+          <p className="pact-status">
+            Договор проводника: ещё {run.pact.remaining} боя ·{' '}
+            {run.pact.kind === 'guard' ? '+6 защиты каждому в первый ход' : '+6 силы первой атаке'}
+          </p>
+        )}
       </>
     )
   }
   return (
-    <div className={view === 'run' ? 'app in-run' : 'app'}>
+    <div className={`${view === 'run' ? 'app in-run' : 'app'} ${largeText ? 'large-text' : ''}`}>
       <nav className="nav">
         <button className="brand" onClick={() => setView('home')}>
           <span className="brand-mark">
@@ -1068,6 +1698,14 @@ function App() {
           </span>
         </button>
         <div>
+          <button
+            className="text-button"
+            aria-pressed={largeText}
+            aria-label="Крупный текст"
+            onClick={() => setLargeText(!largeText)}
+          >
+            Аа
+          </button>
           <button className="text-button board-nav" onClick={() => setModal('leaderboard')}>
             <Icon name="star" size={18} />
             Рекорды
@@ -1098,10 +1736,18 @@ function App() {
           </p>
         )}
         {content}
+        {unlockNotice && (
+          <div className="unlock-notice" role="status">
+            <span>{unlockNotice}</span>
+            <button className="text-button" onClick={() => setUnlockNotice('')}>
+              Понятно
+            </button>
+          </div>
+        )}
       </main>
       <footer>
         <span>dndrun · Путь отряда</span>
-        <span>Поход сохраняется в этом браузере · v0.4</span>
+        <span>Поход сохраняется в этом браузере · v0.6</span>
       </footer>
       {modal && (
         <Modal
@@ -1160,6 +1806,22 @@ function App() {
             </>
           ) : modal === 'deck' ? (
             <>
+              {run && (
+                <details className="build-plans">
+                  <summary>Сочетания вашей сборки</summary>
+                  {buildPlans(run).map((p) => (
+                    <article key={p.name}>
+                      <strong>
+                        {p.name} · {p.ready ? 'есть основа' : 'нужна подготовка'}
+                      </strong>
+                      <p>{p.text}</p>
+                      <small>
+                        {p.setup} → {p.finish}
+                      </small>
+                    </article>
+                  ))}
+                </details>
+              )}
               <p className="muted">
                 Карты трёх героев составляют общую колоду. В начале хода вы берёте 5 карт. Сброс
                 перемешивается, когда колода заканчивается.
@@ -1212,15 +1874,55 @@ function App() {
                 </li>
               </ol>
               <div className="help-extra">
+                <h3>Награды и испытания</h3>
+                <p>
+                  Перед походом выберите условия, затем состав. Знакомства открывают новых героев
+                  без прибавки к их силе. Дневной поход фиксирован. В правилах 0.6 все источники
+                  дополнительного добора вместе дают не больше четырёх карт за ход; обычный добор в
+                  начале хода в этот предел не входит.
+                </p>
+                <p>
+                  После элиты и босса сначала выберите одну из трёх реликвий, затем карту. На
+                  маршруте можно раскрыть необязательное испытание: враги получают +2 к атаке, а
+                  выполнение условия даёт +15 монет и +80 очков с множителем. Неудача сохраняет
+                  обычную награду. Ссылка в итогах позволяет другу попробовать тот же старт — без
+                  общей сетевой таблицы.
+                </p>
+              </div>
+              <div className="help-extra">
                 <h3>Связки и очки</h3>
                 <p>
                   Чередуйте владельцев карт: третья карта серии даёт добор, пятая — энергию. Каждый
                   бонус срабатывает один раз за ход. Повтор того же героя начинает серию заново.
-                  Быстрые бои, элита, отсутствие ран и длинные серии повышают счёт. После каждого
-                  круга выбирайте дар и готовьтесь к новому знамению.
+                  Атаки на третьем шаге серии получают ×1,25 урона, на пятом ×1,5, седьмом ×1,75,
+                  девятом ×2. Множитель применяется до уязвимости. Один экземпляр карты можно
+                  сыграть только раз за ход; копии — отдельные карты. Быстрые бои, элита, отсутствие
+                  ран и длинные серии повышают счёт. После каждого круга выбирайте дар и готовьтесь
+                  к новому знамению.
+                </p>
+                <p>
+                  Завершающий удар в серии от трёх карт даёт бонус за избыток урона после брони:
+                  сила удара минус оставшееся здоровье. Учитывается только лучший такой удар за бой,
+                  максимум 150 очков до множителя режима и круга. Яд, взрывы и призванные помощники
+                  этот бонус не дают. Прогноз на цели показывает прибавку к текущему бонусу боя.
                 </p>
               </div>
               <h3>Что умеет каждый герой</h3>
+              <div className="help-extra">
+                <h3>Враги и правила боссов</h3>
+                <p>
+                  Особенность следующего босса показана на маршруте. Печати снимаются картами двух
+                  разных героев; повтор владельца может дать боссу броню. Призыв ограничен тремя
+                  живыми врагами. Охотник отмечает цель за ход до удара. Ритуал обычного врага
+                  прерывается, когда за ход он теряет 10 здоровья. Щитоносцы, знаменосцы и
+                  проклинатели требуют своего порядка целей — подробности доступны под врагами.
+                </p>
+                <p>
+                  Пепел нельзя сыграть: он исчезает после одного добора в конце хода; очищение
+                  убирает его из всех стопок сразу. «Узел памяти» после связки ×3 позволяет выбрать
+                  одну карту для следующего хода кнопкой под картой.
+                </p>
+              </div>
               <div className="hero-guide">
                 {Object.values(HEROES).map((h) => (
                   <div key={h.id}>
@@ -1250,7 +1952,7 @@ function App() {
                 <div>
                   <strong>
                     {profile.seenCards.length}
-                    <small> / {CARDS.length}</small>
+                    <small> / {CARDS.filter((c) => !c.junk).length}</small>
                   </strong>
                   <span>карт найдено</span>
                 </div>

@@ -1,0 +1,512 @@
+{
+  "sample": 840,
+  "winningTriples": 84,
+  "zeroWins": [],
+  "notes": "Ten heuristic safe-route seeds per triple. Technical reachability sample, not a fair balance or human fun score.",
+  "rows": [
+    {
+      "party": "alchemist,duelist,oracle",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,duelist,warden",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,duelist,ranger",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,duelist,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,duelist,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,duelist,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,duelist,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,oracle,warden",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,oracle,ranger",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,oracle,mage",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,oracle,rogue",
+      "samples": 10,
+      "wins": 8,
+      "max": 15
+    },
+    {
+      "party": "alchemist,oracle,priest",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,oracle,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,warden,ranger",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,warden,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,warden,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,warden,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,warden,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,ranger,mage",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,ranger,rogue",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "alchemist,ranger,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,ranger,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,mage,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,mage,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,mage,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,rogue,priest",
+      "samples": 10,
+      "wins": 7,
+      "max": 15
+    },
+    {
+      "party": "alchemist,rogue,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "alchemist,priest,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,oracle,warden",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,oracle,ranger",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "duelist,oracle,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,oracle,rogue",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "duelist,oracle,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,oracle,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,warden,ranger",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "duelist,warden,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,warden,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,warden,priest",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "duelist,warden,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,ranger,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,ranger,rogue",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "duelist,ranger,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,ranger,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,mage,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,mage,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,mage,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,rogue,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,rogue,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "duelist,priest,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,warden,ranger",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,warden,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,warden,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,warden,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,warden,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,ranger,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,ranger,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,ranger,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,ranger,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,mage,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,mage,priest",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "oracle,mage,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,rogue,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,rogue,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "oracle,priest,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,ranger,mage",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,ranger,rogue",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "warden,ranger,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,ranger,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,mage,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,mage,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,mage,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,rogue,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,rogue,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "warden,priest,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "ranger,mage,rogue",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "ranger,mage,priest",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    },
+    {
+      "party": "ranger,mage,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "ranger,rogue,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "ranger,rogue,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "ranger,priest,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "mage,rogue,priest",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "mage,rogue,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "mage,priest,bard",
+      "samples": 10,
+      "wins": 10,
+      "max": 15
+    },
+    {
+      "party": "rogue,priest,bard",
+      "samples": 10,
+      "wins": 9,
+      "max": 15
+    }
+  ]
+}

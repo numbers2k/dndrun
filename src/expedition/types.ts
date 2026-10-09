@@ -1,4 +1,6 @@
-export type HeroId = 'warden' | 'ranger' | 'mage' | 'rogue' | 'priest' | 'bard'
+export type HeroId =
+  'warden' | 'ranger' | 'mage' | 'rogue' | 'priest' | 'bard' | 'alchemist' | 'duelist' | 'oracle'
+export type ContractId = 'standard' | 'no-healer' | 'thin-hand' | 'ashfall'
 export type CardKind = 'attack' | 'skill' | 'spell'
 export type Target = 'enemy' | 'ally' | 'all' | 'self'
 export interface HeroDef {
@@ -31,6 +33,10 @@ export interface CardDef {
   vulnerable?: number
   draw?: number
   energy?: number
+  blockStrike?: boolean
+  poisonStrike?: boolean
+  cleanse?: boolean
+  junk?: boolean
   exhaust?: boolean
   text: string
 }
@@ -41,7 +47,7 @@ export interface Card {
   level?: number
 }
 export interface Intent {
-  kind: 'attack' | 'guard' | 'charge'
+  kind: 'attack' | 'guard' | 'charge' | 'ritual' | 'support' | 'curse'
   damage: number
   target: number
   block: number
@@ -59,6 +65,10 @@ export interface Enemy {
   power: number
   intent: Intent
   elite: boolean
+  damageThisTurn?: number
+  fallenProcessed?: boolean
+  summoned?: boolean
+  armorMoved?: boolean
 }
 export interface Combat {
   enemies: Enemy[]
@@ -78,6 +88,23 @@ export interface Combat {
   maxChain: number
   turnChain?: number
   damageTaken: number
+  rule?: 'echo' | 'seal' | 'summon' | 'hunt' | null
+  ruleHeroes?: HeroId[]
+  marked?: number
+  retained?: string | null
+  retainReady?: boolean
+  reserve?: number
+  duelistUsed?: boolean
+  oracleUsed?: boolean
+  healUsed?: boolean
+  trial?: 'swift' | 'chain' | 'flawless' | null
+  spent?: string[]
+  poisonRelay?: { hero: HeroId; bonus: number } | null
+  guardRelay?: { hero: HeroId; bonus: number } | null
+  finisher?: number
+  bonusDraw?: number
+  areaAttacks?: number
+  openingGuard?: number
 }
 export type NodeKind = 'battle' | 'elite' | 'rest' | 'event' | 'shop' | 'boss'
 export interface RouteNode {
@@ -85,6 +112,9 @@ export interface RouteNode {
   kind: NodeKind
   name: string
   description: string
+  encounter?: string
+  bossId?: string
+  trial?: 'swift' | 'chain' | 'flawless'
 }
 export interface Reward {
   cards: Card[]
@@ -92,12 +122,15 @@ export interface Reward {
   relic: string | null
   recruit: HeroId | null
   nodeKind: NodeKind
+  relicChoices?: string[]
+  trial?: { id: 'swift' | 'chain' | 'flawless'; success: boolean }
 }
 export interface Run {
   version: 3
   seed: string
   rng: number
   mode: 'normal' | 'daily' | 'hard'
+  contract: ContractId
   phase:
     'route' | 'combat' | 'reward' | 'rest' | 'event' | 'shop' | 'checkpoint' | 'victory' | 'defeat'
   depth: number
@@ -117,12 +150,27 @@ export interface Run {
   damageDealt: number
   recorded: boolean
   score: number
-  lastScore: { base: number; speed: number; flawless: number; combo: number; total: number }
+  lastScore: {
+    base: number
+    speed: number
+    flawless: number
+    combo: number
+    finisher?: number
+    total: number
+  }
   cleared: number
   boons: string[]
   omen: string | null
   runId: string
-  rules: 4 | 3
+  rules: 6 | 5 | 4 | 3
+  startParty?: HeroId[]
+  pact?: { kind: 'guard' | 'edge'; remaining: number } | null
+  bossSchedule?: string[]
+  encounterHistory?: string[]
+  eventHistory?: number[]
+  visitor?: HeroId | null
+  startLeader?: HeroId
+  feats?: { bestHit: number; bestChain: number; interrupts: number; trials: number }
 }
 export interface HistoryEntry {
   seed: string
@@ -136,6 +184,7 @@ export interface HistoryEntry {
   rules?: number
   cleared?: number
   player?: string
+  contract?: ContractId
 }
 export interface Profile {
   version: 3
@@ -148,4 +197,5 @@ export interface Profile {
   tutorialDone: boolean
   nickname: string
   records: HistoryEntry[]
+  unlockedHeroes: HeroId[]
 }

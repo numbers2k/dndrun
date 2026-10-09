@@ -1,7 +1,7 @@
 {
   "name": "dndrun",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +10,18 @@
     "preview": "vite preview",
     "smoke:balance": "tsx tests/balance.mts",
     "test:unit": "tsx tests/engine.mts",
-    "test": "npm run test:unit && npm run smoke:balance && npm run smoke:endless",
+    "test": "npm run test:unit && npm run test:variety && npm run test:combo && npm run test:audit && npm run test:contracts && npm run test:iteration && npm run smoke:balance && npm run smoke:contracts && npm run smoke:players && npm run smoke:rosters && npm run smoke:deep && npm run smoke:endless",
+    "test:contracts": "tsx tests/contracts.mts",
+    "test:iteration": "tsx tests/iteration.mts",
+    "smoke:contracts": "tsx tests/contracts-balance.mts",
     "format": "prettier --write src tests vite.config.ts",
-    "smoke:endless": "tsx tests/endless.mts"
+    "smoke:endless": "tsx tests/endless.mts",
+    "smoke:deep": "tsx tests/deep-endless.mts",
+    "smoke:rosters": "tsx tests/roster-stress.mts",
+    "test:audit": "tsx tests/audit.mts",
+    "smoke:players": "tsx tests/player-audit.mts",
+    "test:variety": "tsx tests/variety.mts",
+    "test:combo": "tsx tests/combo.mts"
   },
   "dependencies": {
     "react": "^19.2.7",
