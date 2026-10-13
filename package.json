@@ -7,8 +7,8 @@
     "dev": "node tools/serve.mjs",
     "build": "node tools/build.mjs",
     "preview": "node tools/serve.mjs --dist",
-    "check": "node --check public/app.js && node --check public/art.js && node --check public/party.js && node --check public/deck.js && node --check public/content.js && node --check public/combat.js && node --check public/campaign.js && node --check public/storage.js && node --check tools/serve.mjs && node --check tools/build.mjs",
-    "test": "node tests/party.test.mjs && node tests/deck.test.mjs && node tests/combat.test.mjs && node tests/storage.test.mjs && node tests/build.test.mjs",
+    "check": "node --check public/app.js && node --check public/art.js && node --check public/party.js && node --check public/deck.js && node --check public/content.js && node --check public/combat.js && node --check public/campaign.js && node --check public/storage.js && node --check tools/serve.mjs && node --check tools/build.mjs && node --check public/items.js && node --check public/relics.js && node --check public/upgrades.js && node --check public/shop.js",
+    "test": "node tests/party.test.mjs && node tests/deck.test.mjs && node tests/combat.test.mjs && node tests/storage.test.mjs && node tests/shop.test.mjs && node tests/build.test.mjs",
     "balance": "node tests/balance.mjs"
   }
 }

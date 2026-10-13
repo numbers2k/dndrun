@@ -1,0 +1,177 @@
+/* The market replaces the trail; the party and its possessions stay below. */
+.shop-market {
+  width: min(100%, 1120px);
+  align-self: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px;
+  gap: 16px;
+  align-items: center;
+}
+.shop-offers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.market-card {
+  aspect-ratio: var(--card-ratio);
+  border-radius: var(--surface-radius);
+  border: 1px solid #a58c60;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 7px;
+  background: linear-gradient(145deg, #3c4336, #202e29);
+  box-shadow: 0 4px 0 #14211e;
+  color: #d7d6c3;
+  min-width: 0;
+}
+.market-card > small {
+  color: #9baa93;
+  font-size: 9px;
+}
+.market-art {
+  height: 48px;
+  display: flex;
+  align-items: center;
+}
+.market-art .symbol {
+  width: 42px;
+  height: 42px;
+}
+.market-card > strong {
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 600;
+}
+.market-card > p {
+  font-size: 10px;
+  line-height: 1.35;
+  color: #bcc5ac;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  min-height: 0;
+  max-height: 5.4em;
+}
+.market-price {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  color: #d8bb80;
+  font-size: 15px;
+}
+.market-price .symbol {
+  width: 20px;
+  height: 20px;
+}
+.market-card:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.market-card.sold {
+  opacity: 0.4;
+  border-color: #566453;
+}
+.shop-market > .bevel {
+  min-height: 46px;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+.shop-notice {
+  grid-column: 1 / -1;
+  min-height: 14px;
+  font-size: 11px;
+  color: #d1b18a;
+}
+.shop-owned {
+  width: var(--slot-width, 56px);
+  flex: 0 0 var(--slot-width, 56px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sell-control {
+  font-size: 8px;
+  padding: 4px 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #bcac84;
+  background: #16251f;
+}
+.sell-control .symbol {
+  width: 10px;
+  height: 10px;
+}
+.shop-field .expedition-status .empty-slot-row {
+  align-items: flex-start;
+}
+.shop-field .expedition-status {
+  flex-grow: 1;
+}
+.book-spell:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.book-spell:disabled:hover {
+  transform: none;
+}
+.collection-section {
+  margin-top: 28px;
+  font-size: 18px;
+  font-weight: 500;
+  text-align: center;
+}
+.collection-grid {
+  margin-top: 16px;
+}
+.collection-grid .relic-card {
+  height: calc(160px * 156 / 110);
+  min-height: 0;
+}
+.collection-grid .relic-card p {
+  font-size: 10px;
+}
+@media (max-width: 1150px) {
+  .shop-market {
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 10px;
+  }
+  .shop-offers {
+    gap: 8px;
+  }
+  .market-card {
+    padding: 8px;
+    gap: 5px;
+  }
+  .market-card > strong {
+    font-size: 11px;
+  }
+  .market-card > p {
+    font-size: 9px;
+  }
+  .market-art {
+    height: 34px;
+  }
+  .market-art .symbol {
+    width: 30px;
+    height: 30px;
+  }
+}
+@media (max-height: 700px) {
+  .market-card {
+    gap: 5px;
+  }
+  .shop-market {
+    gap: 8px;
+  }
+  .shop-owned {
+    --slot-width: 40px;
+    gap: 3px;
+  }
+}

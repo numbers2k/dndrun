@@ -1,48 +1,70 @@
 import { shuffle } from "./deck.js";
 import { seededRandom, supplyById } from "./content.js";
+import {
+  relicBonuses,
+  damageChain,
+  localMultiplier,
+  recordTurn,
+  plannedCards,
+} from "./relics.js";
+import { canUpgrade, upgradeCard, updateBattleCard } from "./upgrades.js";
 
 export const HAND_LIMIT = 9;
 export const BASE_ELIXIR = 4;
 const clone = (value) => structuredClone(value);
 const alive = (unit) => unit.hp > 0;
-const has = (battle, id) => battle.relics.includes(id);
 const partyAlive = (b) => b.heroes.filter(alive);
 export const cardTarget = (card) =>
   ["Урон", "Яд", "Уязвимость", "Замедление"].includes(card.effect)
     ? "enemy"
     : "ally";
 const cardById = (b, id) => b.deck.hand.find((c) => c.id === id);
-const plannedCards = (b) =>
-  b.plan
-    .filter((p) => p.kind === "card")
-    .map((p) => cardById(b, p.id))
-    .filter(Boolean);
-export function effectiveCard(card, relics = [], owner = null) {
-  const next = { ...card };
+export function effectiveCard(
+  card,
+  relics = [],
+  owner = null,
+  battle = null,
+  context = {},
+) {
+  // Outside combat, show persistent bonuses without inventing a planned turn.
+  const b = battle || {
+    ...context,
+    relics,
+    plan: [],
+    deck: { hand: context.cards || [card], draw: [], spent: [] },
+    heroes: context.heroes || (owner ? [owner] : []),
+    turn: 0,
+    maxElixir: 4,
+  };
+  const bonuses = relicBonuses(b, card),
+    next = { ...card, multiplier: localMultiplier(card) };
   if (card.effect === "Урон")
-    next.amount += (relics.includes("rune") ? 2 : 0) + (owner?.strength || 0);
-  if (card.effect === "Защита") next.amount += relics.includes("ward") ? 2 : 0;
-  if (card.effect === "Лечение") next.amount += relics.includes("herb") ? 3 : 0;
+    next.amount += Math.floor(bonuses.damage) + (owner?.strength || 0);
+  if (card.effect === "Защита") next.amount += Math.floor(bonuses.guard);
+  if (card.effect === "Лечение") next.amount += Math.floor(bonuses.heal);
   if (card.poison)
-    next.detail = `яд ${card.poison + (relics.includes("venom") ? 2 : 0)}`;
+    next.detail = (card.detail || "яд " + card.poison).replace(
+      /яд \d+/,
+      "яд " + (card.poison + Math.floor(bonuses.poison)),
+    );
+  if (card.gilded)
+    next.detail = [next.detail, "+1 монета"].filter(Boolean).join(" · ");
   return next;
 }
 export function remainingElixir(b) {
-  return b.maxElixir - plannedCards(b).reduce((n, c) => n + c.energy, 0);
-}
-export function turnMultiplier(b) {
-  const cards = plannedCards(b);
-  let mult = 1 + cards.reduce((n, c) => n + (c.multiplier - 1), 0);
-  if (has(b, "moon") && new Set(cards.map((c) => c.hero)).size >= 2)
-    mult += 0.5;
-  if (
-    has(b, "oath") &&
-    cards.some((c) => c.effect === "Урон") &&
-    cards.some((c) => c.effect === "Защита")
+  const extra = b.plan.some(
+    (p) =>
+      p.kind === "supply" &&
+      supplyById(b.supplies.find((s) => s.uid === p.id)?.id)?.effect ===
+        "Эликсир",
   )
-    mult += 0.5;
-  return Math.round(mult * 100) / 100;
+    ? 1
+    : 0;
+  return (
+    b.maxElixir + extra - plannedCards(b).reduce((n, c) => n + c.energy, 0)
+  );
 }
+export const turnMultiplier = damageChain;
 function cleanUnit(unit) {
   return {
     ...unit,
@@ -110,10 +132,32 @@ export function createBattle({
   relics = [],
   supplies = [],
   seed = 1,
+  context = {},
 }) {
   const draw = shuffle(clone(cards), seededRandom(seed)),
-    maxElixir = BASE_ELIXIR + (relics.includes("flask") ? 1 : 0);
+    maxElixir =
+      BASE_ELIXIR +
+      Math.min(
+        1,
+        relicBonuses({
+          relics,
+          plan: [],
+          deck: { hand: [], draw: [], spent: [] },
+          heroes: [],
+          turn: 1,
+          maxElixir: 4,
+        }).elixir,
+      );
   const b = {
+    coins: context.coins || 0,
+    stats: structuredClone(context.stats || {}),
+    relicState: structuredClone(context.relicState || {}),
+    metrics: {},
+    usedHeroes: [],
+    previousPattern: null,
+    cheapStreak: 0,
+    coinEarned: 0,
+    gildedUsed: [],
     heroes: heroes.map((h) => cleanUnit({ ...h, guard: 0 })),
     enemies: encounter.enemies.map(cleanUnit),
     relics: [...relics],
@@ -131,7 +175,8 @@ export function createBattle({
     status: "active",
     log: [],
   };
-  b.heroes.forEach((h) => (h.guard = has(b, "venom") ? 2 : 0));
+  const startGuard = Math.min(12, Math.floor(relicBonuses(b).startGuard));
+  b.heroes.forEach((h) => (h.guard = startGuard));
   refreshIntents(b);
   return b;
 }
@@ -141,6 +186,20 @@ export function validTarget(b, kind, id, target) {
       ? cardById(b, id)
       : supplyById(b.supplies.find((s) => s.uid === id)?.id);
   if (!item) return false;
+  if (kind === "supply" && item.target === "card") {
+    const card = b.deck.hand.find((c) => "card:" + c.id === target);
+    return Boolean(
+      card &&
+      b.heroes.some((h) => h.id === card.hero && alive(h)) &&
+      canUpgrade(card, item, [...b.deck.hand, ...b.deck.draw, ...b.deck.spent]),
+    );
+  }
+  if (kind === "supply" && item.effect === "Возврат")
+    return (
+      b.deck.hand.length < HAND_LIMIT &&
+      b.deck.spent.some((c) => c.hero === target) &&
+      b.heroes.some((h) => h.id === target && alive(h))
+    );
   const side = kind === "card" ? cardTarget(item) : item.target;
   return (side === "enemy" ? b.enemies : b.heroes).some(
     (u) => u.id === target && alive(u),
@@ -176,6 +235,10 @@ export function undoAction(b, index) {
     return b;
   const next = clone(b);
   next.plan.splice(index, 1);
+  while (remainingElixir(next) < 0) {
+    const i = next.plan.findLastIndex((p) => p.kind === "card");
+    next.plan.splice(i, 1);
+  }
   return next;
 }
 function hit(unit, amount, b, label) {
@@ -197,6 +260,8 @@ function tickPoison(units, b) {
   for (const u of units.filter(alive)) {
     if (u.poison) {
       const damage = u.poison;
+      if (b.enemies.includes(u) && damage >= u.hp)
+        b.metrics.poisonKills = (b.metrics.poisonKills || 0) + 1;
       u.hp = Math.max(0, u.hp - damage);
       u.poison = Math.max(0, u.poison - 1);
       b.log.push(`Яд: ${u.name || u.id} −${damage}`);
@@ -204,38 +269,89 @@ function tickPoison(units, b) {
   }
 }
 function playerPhase(b) {
-  const mult = turnMultiplier(b);
+  const chain = turnMultiplier(b);
   b.log = [];
+  b.metrics ||= {};
+  b.gildedUsed ||= [];
+  b.coinEarned ||= 0;
   for (const p of b.plan) {
     const card = p.kind === "card" ? cardById(b, p.id) : null;
     const item = card || supplyById(b.supplies.find((s) => s.uid === p.id)?.id);
     if (!item) continue;
-    const side = card ? cardTarget(card) : item.target;
-    const units = side === "enemy" ? b.enemies : b.heroes;
+    if (!card && item.target === "card") {
+      const chosen = b.deck.hand.find((c) => "card:" + c.id === p.target);
+      if (
+        chosen &&
+        canUpgrade(chosen, item, [
+          ...b.deck.hand,
+          ...b.deck.draw,
+          ...b.deck.spent,
+        ])
+      ) {
+        updateBattleCard(
+          b,
+          chosen.id,
+          upgradeCard(chosen, item, [
+            ...b.deck.hand,
+            ...b.deck.draw,
+            ...b.deck.spent,
+          ]),
+        );
+        b.log.push(item.name + ": " + chosen.name + " улучшена");
+      }
+      continue;
+    }
+    if (!card && item.effect === "Эликсир") continue;
+    if (!card && item.effect === "Возврат") {
+      const index = b.deck.spent.findLastIndex((c) => c.hero === p.target);
+      if (index >= 0 && b.deck.hand.length < HAND_LIMIT)
+        b.deck.hand.push(...b.deck.spent.splice(index, 1));
+      continue;
+    }
+    const side = card ? cardTarget(card) : item.target,
+      units = side === "enemy" ? b.enemies : b.heroes;
     const target = units.find((u) => u.id === p.target);
     if (!target || !alive(target)) continue;
-    const targets = card?.all ? units.filter(alive) : [target];
+    const targets = item.all ? units.filter(alive) : [target];
     const owner = card ? b.heroes.find((h) => h.id === card.hero) : null;
     for (const u of targets) {
-      const scale = card ? mult : 1;
+      const bonus = card ? relicBonuses(b, card, u) : null;
       let base = item.amount || 0;
       if (card && item.effect === "Урон")
-        base +=
-          (has(b, "rune") ? 2 : 0) +
-          (owner?.strength || 0) +
-          (u.vulnerable && has(b, "ember") ? 3 : 0);
-      if (card && item.effect === "Защита") base += has(b, "ward") ? 2 : 0;
-      if (card && item.effect === "Лечение") base += has(b, "herb") ? 3 : 0;
+        base += Math.floor(bonus.damage) + (owner?.strength || 0);
+      if (card && item.effect === "Защита") base += Math.floor(bonus.guard);
+      if (card && item.effect === "Лечение") base += Math.floor(bonus.heal);
+      const scale = card
+        ? localMultiplier(card) *
+          (item.effect === "Урон" ? chain * bonus.cardFactor : 1)
+        : 1;
       const amount = Math.floor(base * scale);
-      if (item.effect === "Урон") hit(u, amount, b, item.name);
+      if (item.effect === "Урон") {
+        hit(u, amount, b, item.name);
+        if (card && bonus.echo > 0 && alive(u))
+          hit(u, Math.floor(base * Math.min(0.5, bonus.echo)), b, "Эхо");
+        if (card && bonus.splash > 0)
+          for (const other of b.enemies.filter((e) => e !== u && alive(e)))
+            hit(
+              other,
+              Math.floor(amount * Math.min(0.4, bonus.splash)),
+              b,
+              "Разлив",
+            );
+      }
       if (item.effect === "Защита") {
         u.guard += amount;
-        b.log.push(`${item.name}: ${u.name || u.id} +${amount} защиты`);
+        b.log.push(
+          item.name + ": " + (u.name || u.id) + " +" + amount + " защиты",
+        );
       }
       if (item.effect === "Лечение") {
         const healed = Math.min(u.maxHp - u.hp, amount);
         u.hp += healed;
-        b.log.push(`${item.name}: ${u.name || u.id} +${healed} здоровья`);
+        if (card?.cleansing) u.poison = 0;
+        b.log.push(
+          item.name + ": " + (u.name || u.id) + " +" + healed + " здоровья",
+        );
       }
       if (item.effect === "Уязвимость")
         u.vulnerable = Math.max(u.vulnerable, 2);
@@ -247,17 +363,20 @@ function playerPhase(b) {
         u.vulnerable = 0;
         u.hp = Math.min(u.maxHp, u.hp + amount);
       }
+      if (item.effect === "Разоружение")
+        u.guard = Math.max(0, u.guard - amount);
       if (item.effect === "Усиление") {
         u.strength = amount;
         u.strengthTurns = 2;
       }
-      if (item.effect === "Яд" || card?.poison) {
-        u.poison +=
-          Math.floor(
-            (card?.poison || base) + (card && has(b, "venom") ? 2 : 0),
-          ) * scale;
-        u.poison = Math.floor(u.poison);
-      }
+      if (item.effect === "Яд" || card?.poison)
+        u.poison += Math.floor(
+          (card?.poison || base) + (card ? bonus.poison : 0),
+        );
+    }
+    if (card?.gilded && !b.gildedUsed.includes(card.id)) {
+      b.coinEarned++;
+      b.gildedUsed.push(card.id);
     }
   }
 }
@@ -317,6 +436,7 @@ export function endTurn(b) {
   const next = clone(b);
   playerPhase(next);
   tickPoison(next.enemies, next);
+  recordTurn(next);
   const cardIds = new Set(
       next.plan.filter((p) => p.kind === "card").map((p) => p.id),
     ),
@@ -337,7 +457,7 @@ export function endTurn(b) {
     u.strengthTurns = Math.max(0, u.strengthTurns - 1);
     if (!u.strengthTurns) u.strength = 0;
     if (next.heroes.includes(u)) {
-      u.guard = alive(u) && has(next, "venom") ? 2 : 0;
+      u.guard = 0;
       u.dodge = 0;
     }
   }
@@ -358,7 +478,11 @@ export function endTurn(b) {
   refreshIntents(next);
   if (
     !next.deck.hand.length &&
-    !next.supplies.length &&
+    !next.supplies.some((s) =>
+      [...next.heroes, ...next.enemies].some((u) =>
+        validTarget(next, "supply", s.uid, u.id),
+      ),
+    ) &&
     !next.enemies.some((e) => alive(e) && e.poison > 0)
   ) {
     next.status = "defeat";

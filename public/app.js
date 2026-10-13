@@ -8,6 +8,9 @@ import {
   spellDescription,
 } from "./party.js";
 import { currentDeckCards } from "./deck.js";
+import { buyOffer, priceFor, sellValue, sellItem } from "./shop.js";
+import { canUpgrade, upgradeCard } from "./upgrades.js";
+
 import {
   BASE_ELIXIR,
   createBattle,
@@ -20,15 +23,20 @@ import {
   validTarget,
   effectiveCard,
 } from "./combat.js";
-import { relics, relicById, supplyById, chapterEncounters } from "./content.js";
+import {
+  relics,
+  supplies,
+  relicById,
+  supplyById,
+  chapterEncounters,
+} from "./content.js";
 import {
   createRun,
   claimVictory,
-  rewardChoices,
-  chooseReward,
   advanceRun,
   enterEndless,
   addSupply,
+  syncBattleProgress,
   rest,
 } from "./campaign.js";
 import {
@@ -85,7 +93,7 @@ state.run = null;
 state.activeItem = null;
 state.notice = "";
 state.resumeModal = null;
-state.replaceReward = null;
+state.upgradeSupply = null;
 let cards = buildDeck(defaultParty);
 let hand = cards.slice(0, 9);
 let encounterDeck = null;
@@ -158,11 +166,7 @@ function persist() {
     saveSession({
       run: state.run,
       screen: state.screen === "menu" ? state.resumeScreen : state.screen,
-      modal: ["victory", "final"].includes(modal)
-        ? modal
-        : modal === "replace-reward"
-          ? "victory"
-          : null,
+      modal: modal === "final" ? modal : null,
     });
   }
 }
@@ -172,7 +176,11 @@ function deckStack() {
 }
 function gearCard(item, kind) {
   const data = kind === "relic" ? relicById(item) : supplyById(item.id);
-  return `<button class="gear-card empty-slot ${state.activeItem?.kind === kind && state.activeItem.id === item.uid ? "selected" : ""}" data-action="${kind === "relic" ? "inspect-relic" : "supply"}" data-id="${kind === "relic" ? item : item.uid}" aria-label="${esc(data.name)}, ${esc(data.description)}" title="${esc(data.description)}">${symbol(data.icon)}<small>${data.name}</small></button>`;
+  const id = kind === "relic" ? item : item.uid;
+  const card = `<button class="gear-card empty-slot ${state.activeItem?.kind === kind && state.activeItem.id === item.uid ? "selected" : ""}" data-action="${kind === "relic" ? "inspect-relic" : "supply"}" data-id="${id}" aria-label="${esc(data.name)}, ${esc(data.description)}" title="${esc(data.description)}">${symbol(data.icon)}<small>${data.name}</small></button>`;
+  return state.screen === "shop"
+    ? `<div class="shop-owned">${card}<button class="sell-control" data-action="sell-item" data-kind="${kind}" data-id="${id}" aria-label="Продать ${data.name} за ${sellValue(state.run, kind, id)} монет">Продать ${symbol("coin")}${sellValue(state.run, kind, id)}</button></div>`
+    : card;
 }
 function topSlots() {
   const r = state.run;
@@ -240,8 +248,22 @@ function encounterTrail(index) {
   }).join("");
   return `<div class="encounter-trail" aria-hidden="true">${steps}</div>`;
 }
+function shop() {
+  const r = state.run;
+  return `<section class="shop-market" aria-label="Лавка"><div class="shop-offers">${r.shop.offers
+    .map((offer, i) => {
+      const item =
+          offer.kind === "relic" ? relicById(offer.id) : supplyById(offer.id),
+        price = priceFor(r, offer.kind, offer.id);
+      return `<button class="market-card ${offer.sold ? "sold" : ""}" data-action="buy-offer" data-index="${i}" ${offer.sold ? "disabled" : ""} title="${esc(item.description)}" aria-label="${esc(item.name)}, ${esc(item.description)}, ${price} монет"><small>${offer.kind === "relic" ? "Реликвия" : "Припас"}</small><div class="market-art">${symbol(item.icon)}</div><strong>${item.name}</strong><p>${item.description}</p><span class="market-price">${offer.sold ? "Куплено" : symbol("coin") + price}</span></button>`;
+    })
+    .join(
+      "",
+    )}</div>${button("Продолжить", "leave-shop", "blue")}<div class="shop-notice" role="status">${esc(state.notice)}</div></section>`;
+}
 function route() {
-  return `<main class="game-layout">${sidebar()}<section class="playfield route-field" aria-label="Выбор встречи"><div class="encounter-cards">${encounters.map((e, i) => `${i ? encounterTrail(i) : ""}${encounterCard(e, i)}`).join("")}</div>${expeditionStatus()}<div class="route-footer"><p class="field-caption">${encounters[0].region} <span>·</span> ГЛАВА ${state.run.chapter}${state.run.endless ? " · ∞" : ""}</p>${button("Привал · 3 монеты", "rest", "dark", state.run.coins < 3 || state.run.heroes.every((h) => h.hp === h.maxHp) ? "disabled" : "")}</div></section></main>`;
+  const market = state.screen === "shop";
+  return `<main class="game-layout">${sidebar()}<section class="playfield route-field ${market ? "shop-field" : ""}" aria-label="${market ? "Магазин после боя" : "Выбор встречи"}">${market ? shop() : `<div class="encounter-cards">${encounters.map((e, i) => `${i ? encounterTrail(i) : ""}${encounterCard(e, i)}`).join("")}</div>`}${expeditionStatus()}<div class="route-footer"><p class="field-caption">${encounters[0].region} <span>·</span> ГЛАВА ${state.run.chapter}${state.run.endless ? " · ∞" : ""}</p>${button("Привал · 3 монеты", "rest", "dark", state.run.coins < 3 || state.run.heroes.every((h) => h.hp === h.maxHp) ? "disabled" : "")}</div></section></main>`;
 }
 function actionCard(c, index, preview = false, spent = false) {
   if (state.run && (!preview || state.modal === "run-book"))
@@ -249,13 +271,31 @@ function actionCard(c, index, preview = false, spent = false) {
       c,
       state.run.relics,
       state.run.battle?.heroes.find((h) => h.id === c.hero),
+      state.screen === "battle" ? state.run.battle : null,
+      state.run,
     );
   const selected =
     !preview &&
     state.activeItem?.kind === "card" &&
     state.activeItem.id === c.id;
   const owner = heroById(c.hero).name;
-  return `<button class="action-card ${c.color} ${preview ? "book-spell" : ""} ${spent ? "spent-card" : ""} ${selected ? "selected" : ""}" style="--card-index:${index};--card-angle:${preview ? 0 : (index - (hand.length - 1) / 2) * 1.5}deg;--card-drop:${preview ? 0 : Math.abs(index - (hand.length - 1) / 2) * 3}px" ${preview ? "" : `data-action="card" data-drag-card="${c.id}" data-id="${c.id}" aria-pressed="${selected}"`} aria-label="${c.name}, ${spellDescription(c)}, энергия ${c.energy}, ${owner}${spent ? ", израсходована" : ""}"><div class="card-illustration">${portrait(c.hero)}</div><div class="card-title">${c.name}</div><div class="card-effect">${c.effect}${c.amount === undefined ? "" : ` <strong>${c.amount}</strong>`}</div><div class="card-multiplier">Множитель <strong>×${String(c.multiplier).replace(".", ",")}</strong></div>${c.detail ? `<div class="card-detail">${c.detail}</div>` : ""}<div class="card-bottom-symbol"><span class="card-energy" aria-label="Энергия ${c.energy}">${symbol("energy")}<strong>${c.energy}</strong></span><span class="card-owner">${owner}</span></div></button>`;
+  const upgradeItem = state.upgradeSupply
+    ? supplyById(
+        state.run.supplies.find((s) => s.uid === state.upgradeSupply)?.id,
+      )
+    : null;
+  const upgradeTarget = state.modal === "upgrade-book" && upgradeItem;
+  const targetReady =
+    state.screen === "battle" &&
+    state.activeItem?.kind === "supply" &&
+    validTarget(
+      state.run.battle,
+      "supply",
+      state.activeItem.id,
+      "card:" + c.id,
+    );
+  const enabled = upgradeTarget && canUpgrade(c, upgradeItem, state.run.cards);
+  return `<button class="action-card ${c.color} ${preview ? "book-spell" : ""} ${spent ? "spent-card" : ""} ${selected ? "selected" : ""} ${targetReady ? "target-ready" : ""}" style="--card-index:${index};--card-angle:${preview ? 0 : (index - (hand.length - 1) / 2) * 1.5}deg;--card-drop:${preview ? 0 : Math.abs(index - (hand.length - 1) / 2) * 3}px" ${preview ? (upgradeTarget ? `data-action="upgrade-copy" data-id="${c.id}" ${enabled ? "" : "disabled"}` : "") : `data-target="card:${c.id}" data-action="card" data-drag-card="${c.id}" data-id="${c.id}" aria-pressed="${selected}"`} aria-label="${c.name}, ${spellDescription(c)}, энергия ${c.energy}, ${owner}${spent ? ", израсходована" : ""}"><div class="card-illustration">${portrait(c.hero)}</div><div class="card-title">${c.name}</div><div class="card-effect">${c.effect}${c.amount === undefined ? "" : ` <strong>${c.amount}</strong>`}</div><div class="card-multiplier">Множитель <strong>×${String(c.multiplier).replace(".", ",")}</strong></div>${c.detail ? `<div class="card-detail">${c.detail}</div>` : ""}<div class="card-bottom-symbol"><span class="card-energy" aria-label="Энергия ${c.energy}">${symbol("energy")}<strong>${c.energy}</strong></span><span class="card-owner">${owner}</span></div></button>`;
 }
 function statuses(u) {
   return [
@@ -301,13 +341,15 @@ function battle() {
   const visible = b.deck.hand.filter((c) => !queued.has(c.id));
   return `<main class="game-layout">${sidebar()}<section class="playfield combat-field" aria-label="Бой">
     <div class="combat-row enemy-row">${b.enemies.map((e) => combatUnit(e, "enemy", forecast.enemies, b)).join("")}</div>
-    <div class="turn-center"><span>Ход ${b.turn}</span><strong title="1 + прибавки множителей карт и реликвий">Множитель ×${String(turnMultiplier(b)).replace(".", ",")}</strong><div class="plan-queue">${b.plan
+    <div class="turn-center"><span>Ход ${b.turn}</span><strong title="Связка усиливает только урон. Собственный множитель каждой карты применяется отдельно.">Урон ×${String(turnMultiplier(b)).replace(".", ",")}</strong><div class="plan-queue">${b.plan
       .map((p, i) => {
         const c =
           p.kind === "card"
             ? b.deck.hand.find((c) => c.id === p.id)
             : supplyById(b.supplies.find((s) => s.uid === p.id).id);
-        const t = [...b.heroes, ...b.enemies].find((u) => u.id === p.target);
+        const t = p.target.startsWith("card:")
+          ? b.deck.hand.find((c) => "card:" + c.id === p.target)
+          : [...b.heroes, ...b.enemies].find((u) => u.id === p.target);
         return `<button data-action="undo" data-index="${i}" title="Вернуть в руку">${c.name} → ${t.name} <span>×</span></button>`;
       })
       .join("")}</div></div>
@@ -373,12 +415,7 @@ function partyBook(inRun = false) {
 }
 
 function modalFooter() {
-  if (
-    ["exit-run", "victory", "defeat", "final", "replace-reward"].includes(
-      state.modal,
-    )
-  )
-    return "";
+  if (["exit-run", "defeat", "final"].includes(state.modal)) return "";
   if (state.modal === "setup")
     return button(
       state.tab === "continue" ? "Продолжить" : "Начать",
@@ -388,51 +425,32 @@ function modalFooter() {
     );
   if (state.modal === "party-book")
     return button("Готово", "finish-party", "blue");
-  if (state.modal === "run-book") return button("Готово", "close", "blue");
+  if (["run-book", "upgrade-book"].includes(state.modal))
+    return button("Готово", "close", "blue");
   return button("Назад", "close", "gold", 'aria-label="Закрыть окно"');
 }
 function gameModalBody() {
   const r = state.run;
   if (state.modal === "collection")
-    return `<h2 class="modal-heading">Реликвии</h2><div class="collection-grid">${relics.map((data) => `<div class="relic-card paper">${symbol(data.icon)}<h3>${data.name}</h3><p>${data.description}</p></div>`).join("")}</div>`;
+    return `<h2 class="modal-heading">Реликвии</h2><div class="collection-grid">${relics.map((data) => `<div class="relic-card paper">${symbol(data.icon)}<h3>${data.name}</h3><p>${data.description}</p></div>`).join("")}</div><h2 class="collection-section">Припасы</h2><div class="collection-grid">${supplies.map((data) => `<div class="relic-card paper">${symbol(data.icon)}<h3>${data.name}</h3><p>${data.description}</p></div>`).join("")}</div>`;
+
   if (state.modal === "inspect-relic" || state.modal === "inspect-supply") {
     const item =
       state.modal === "inspect-relic"
         ? relicById(state.inspectId)
         : supplyById(state.inspectId);
-    return `<h2 class="modal-heading">${item.name}</h2><div class="item-detail">${symbol(item.icon)}<p>${item.description}</p></div>`;
+    const upgrade =
+      state.modal === "inspect-supply" &&
+      state.screen === "shop" &&
+      item.target === "card";
+    return `<h2 class="modal-heading">${item.name}</h2><div class="item-detail">${symbol(item.icon)}<p>${item.description}</p>${upgrade ? button("Применить к карте", "use-upgrade", "blue") : ""}</div>`;
   }
   if (state.modal === "help")
-    return `<h2 class="modal-heading">Бой</h2><div class="paper note"><p>Seed ${r.seed} · глава ${r.chapter} · ${difficulties[r.difficulty].name}</p><p>Перетащите карту на цель или выберите карту и цель кликами. Карты разрешаются по порядку после «Завершить ход». Нажатие на действие в центре возвращает карту.</p><p>Каждый ход: 4 эликсира, рука до 9 карт. Неиспользованные карты остаются. Потраченные возвращаются только перед следующим боем.</p><p>Множитель = 1 + сумма прибавок карт и реликвий. Две карты ×2 дают ×3. Он усиливает урон, защиту, лечение и наложение яда; сбрасывается каждый ход.</p><p>Яд обходит защиту и действует перед ответом врагов, затем уменьшается на 1. Уязвимость: +25% получаемого урона. Замедление: −2 урона атаки. Щиты героев действуют до следующего хода.</p><p>Один припас за ход, без эликсира и множителя. Погибший герой не действует; после победы возвращается с 8 здоровья. Поход заканчивается при гибели всего отряда или исчерпании всех карт и припасов.</p><p>Числа под стрелками — результат запланированных действий до ответа врагов. Их намерения показаны под карточками.</p>${r?.battle?.log.length ? `<hr><p>${r.battle.log.map(esc).join("<br>")}</p>` : ""}</div>`;
+    return `<h2 class="modal-heading">Бой</h2><div class="paper note"><p>Seed ${r.seed} · глава ${r.chapter} · ${difficulties[r.difficulty].name}</p><p>Перетащите карту на цель или выберите карту и цель кликами. Карты разрешаются по порядку после «Завершить ход». Нажатие на действие в центре возвращает карту.</p><p>Каждый ход: 4 эликсира, рука до 9 карт. Неиспользованные карты остаются. Потраченные возвращаются только перед следующим боем.</p><p>Собственный множитель карты усиливает только её эффект. Связка в центре усиливает только урон: бонусы реликвий и +0,25 за карты трёх героев. Рост выше ×3 замедляется. Защита, лечение и яд не получают множитель связки.</p><p>Яд обходит защиту и действует перед ответом врагов, затем уменьшается на 1. Уязвимость: +25% получаемого урона. Замедление: −2 урона атаки. Щиты героев действуют до следующего хода.</p><p>Один припас за ход, без затрат эликсира и множителя. Рунные припасы применяются к отдельной карте в руке; улучшение сохраняется в походе. Погибший герой не действует; после победы возвращается с 8 здоровья. Поход заканчивается при гибели всего отряда или исчерпании всех карт и припасов. После победы открывается лавка. Продажа возвращает половину цены покупки.</p><p>Числа под стрелками — результат запланированных действий до ответа врагов. Их намерения показаны под карточками.</p>${r?.battle?.log.length ? `<hr><p>${r.battle.log.map(esc).join("<br>")}</p>` : ""}</div>`;
   if (state.modal === "leaderboard") {
     const rows = readScores();
     return `<h2 class="modal-heading">Лидерборд</h2><p class="modal-intro">На этом компьютере</p><div class="leaderboard-table"><table><thead><tr><th>Место</th><th>Отряд</th><th>Глава</th><th>Счёт</th></tr></thead><tbody>${rows.length ? rows.map((row, i) => `<tr><td>${i + 1}</td><td>${row.party.map((id) => heroById(id)?.name || "—").join(", ")}</td><td>${Math.floor(row.chapter)}${row.outcome === "complete" ? " ✓" : ""}</td><td>${Math.floor(row.score).toLocaleString("ru")}</td></tr>`).join("") : '<tr><td colspan="4">Нет завершённых походов</td></tr>'}</tbody></table></div>`;
   }
-  if (state.modal === "victory")
-    return `<h2 class="modal-heading">Победа</h2><p class="modal-intro">${encounters[r.stage].name} · +${encounters[r.stage].reward} монет</p><div class="reward-grid">${rewardChoices(
-      r,
-    )
-      .map(
-        (c, i) =>
-          `<button class="reward-card paper" data-action="reward" data-index="${i}" ${r.rewardChosen ? "disabled" : ""}>${symbol(c.icon)}<strong>${c.name}</strong><p>${c.description}</p></button>`,
-      )
-      .join(
-        "",
-      )}</div><div class="reward-actions">${button("Привал · 3 монеты", "rest", "dark", r.coins < 3 || r.heroes.every((h) => h.hp === h.maxHp) ? "disabled" : "")}${r.rewardChosen ? "<span>Награда получена</span>" : button("Отказаться от награды", "skip-reward", "dark")}${button("Продолжить", "next-stage", "blue", r.rewardChosen ? "" : "disabled")}</div>`;
-  if (state.modal === "replace-reward")
-    return `<h2 class="modal-heading">Что заменить?</h2><div class="reward-grid">${(state
-      .replaceReward.kind === "relic"
-      ? r.relics
-      : r.supplies
-    )
-      .map((item) => {
-        const data =
-          state.replaceReward.kind === "relic"
-            ? relicById(item)
-            : supplyById(item.id);
-        return `<button class="reward-card paper" data-action="replace-reward" data-id="${state.replaceReward.kind === "relic" ? item : item.uid}">${symbol(data.icon)}<strong>${data.name}</strong><p>${data.description}</p></button>`;
-      })
-      .join("")}</div>${button("Отмена", "cancel-reward", "dark")}`;
   if (state.modal === "defeat")
     return `<h2 class="modal-heading">Поход окончен</h2><div class="result-summary"><p>${esc(r.battle?.reason || "Отряд пал.")}</p><strong>${r.score.toLocaleString("ru")} очков</strong><span>Глава ${r.chapter} · ${r.completed} побед</span></div>${button("В главное меню", "end-run", "blue")}`;
   if (state.modal === "final")
@@ -448,6 +466,7 @@ function modalBody() {
     case "party-book":
       return partyBook();
     case "run-book":
+    case "upgrade-book":
       return partyBook(true);
     case "exit-run":
       return `<h2 class="modal-heading">Выйти в главное меню?</h2><p class="modal-intro">Поход сохранён на этом компьютере.</p><div class="exit-actions">${button("Остаться", "close", "blue")}${button("Выйти", "confirm-exit", "dark")}</div>${state.run?.endless ? button("Завершить поход и записать счёт", "retire", "dark") : ""}`;
@@ -471,9 +490,9 @@ function closeModal() {
     document.querySelector("[data-action=party-book]")?.focus();
     return;
   }
-  if (["victory", "defeat", "final", "replace-reward"].includes(state.modal))
-    return;
+  if (["defeat", "final"].includes(state.modal)) return;
   state.modal = null;
+  state.upgradeSupply = null;
   render();
   if (returnFocus?.dataset.action)
     document
@@ -488,9 +507,9 @@ function render() {
     root.innerHTML = `<main class="screen-notice"><div class="notice-art">${symbol("die")}</div><small>DNDRUN</small><h1>Мобильная версия<br>пока в разработке</h1><p>Сейчас приключение доступно на компьютере.<br>Откройте игру в окне размером от 1024 × 640.</p><span>Если вы уже на компьютере — увеличьте окно браузера.</span></main>`;
     return;
   }
-  root.innerHTML = `<div class="world ${state.screen === "menu" ? "menu-world" : "table-world"} ${state.reduced ? "still" : ""}"><div class="world-art">${landscape()}</div><div class="world-vignette"></div>${state.screen === "menu" ? menu() : state.screen === "route" ? route() : battle()}${state.modal ? `<div class="modal-backdrop"><section class="modal ${state.modal === "setup" ? "setup-modal" : state.modal === "exit-run" ? "exit-modal" : ""}" role="dialog" aria-modal="true" aria-label="${state.modal === "setup" ? "Выбор похода" : state.modal === "party-book" ? "Книга отряда" : state.modal === "exit-run" ? "Подтверждение выхода" : "Окно игры"}">${["setup", "party-book", "run-book"].includes(state.modal) ? '<button class="modal-close" data-action="close" aria-label="Закрыть окно">×</button>' : ""}<div class="modal-body">${modalBody()}</div>${modalFooter()}</section></div>` : ""}</div>`;
+  root.innerHTML = `<div class="world ${state.screen === "menu" ? "menu-world" : "table-world"} ${state.reduced ? "still" : ""}"><div class="world-art">${landscape()}</div><div class="world-vignette"></div>${state.screen === "menu" ? menu() : ["route", "shop"].includes(state.screen) ? route() : battle()}${state.modal ? `<div class="modal-backdrop"><section class="modal ${state.modal === "setup" ? "setup-modal" : state.modal === "exit-run" ? "exit-modal" : ""}" role="dialog" aria-modal="true" aria-label="${state.modal === "setup" ? "Выбор похода" : state.modal === "party-book" ? "Книга отряда" : state.modal === "exit-run" ? "Подтверждение выхода" : "Окно игры"}">${["setup", "party-book", "run-book", "upgrade-book"].includes(state.modal) ? '<button class="modal-close" data-action="close" aria-label="Закрыть окно">×</button>' : ""}<div class="modal-body">${modalBody()}</div>${modalFooter()}</section></div>` : ""}</div>`;
   root.querySelector("main").inert = Boolean(state.modal);
-  if (["party-book", "run-book"].includes(state.modal)) {
+  if (["party-book", "run-book", "upgrade-book"].includes(state.modal)) {
     root.querySelector(".modal").classList.add("book-modal");
     root.querySelector(".modal").setAttribute("aria-label", "Книга отряда");
   }
@@ -707,7 +726,7 @@ root.addEventListener("click", (event) => {
   }
   if (action === "confirm-exit") {
     state.resumeScreen = state.screen;
-    state.resumeModal = null;
+    state.resumeModal = state.modal === "final" ? "final" : null;
     state.screen = "menu";
     state.modal = null;
   }
@@ -719,6 +738,7 @@ root.addEventListener("click", (event) => {
       encounter: r.encounters[r.stage],
       relics: r.relics,
       supplies: r.supplies,
+      context: r,
       seed: r.seed + r.completed * 919 + r.chapter * 31 + r.stage,
     });
     state.screen = "battle";
@@ -731,9 +751,21 @@ root.addEventListener("click", (event) => {
     if (!skip) return;
     r.coins += skip.coins || 0;
     if (skip.supplies) addSupply(r, "tonic");
+    r.stats.skips++;
     r.stage++;
   }
   if (action === "card" && state.screen === "battle") {
+    if (
+      state.activeItem?.kind === "supply" &&
+      supplyById(
+        state.run.battle.supplies.find((s) => s.uid === state.activeItem.id)
+          ?.id,
+      )?.target === "card"
+    ) {
+      applyTarget("card:" + target.dataset.id);
+      render();
+      return;
+    }
     const id = Number(target.dataset.id),
       b = state.run.battle,
       c = b.deck.hand.find((c) => c.id === id);
@@ -751,6 +783,7 @@ root.addEventListener("click", (event) => {
     const item = state.run.supplies.find((s) => s.uid === target.dataset.id);
     if (state.screen !== "battle") {
       state.inspectId = item.id;
+      state.inspectUid = item.uid;
       state.modal = "inspect-supply";
     } else if (state.run.battle.plan.some((p) => p.kind === "supply"))
       state.notice = "Один припас за ход.";
@@ -773,13 +806,14 @@ root.addEventListener("click", (event) => {
   if (action === "end-turn" && state.screen === "battle" && !state.modal) {
     const r = state.run;
     r.battle = endTurn(r.battle);
-    r.heroes = r.battle.heroes;
-    r.supplies = r.battle.supplies;
+    syncBattleProgress(r, r.battle);
     state.activeItem = null;
     state.notice = "";
     if (r.battle.status === "victory") {
       claimVictory(r, r.battle);
-      state.modal = "victory";
+      state.modal = null;
+      state.screen = "shop";
+      state.resumeScreen = "shop";
     } else if (r.battle.status === "defeat") {
       recordScore(r, "defeat");
       state.hasRun = false;
@@ -787,33 +821,39 @@ root.addEventListener("click", (event) => {
     }
   }
   if (action === "rest") rest(state.run);
-  if (action === "reward") {
-    const r = state.run,
-      c = rewardChoices(r)[Number(target.dataset.index)];
-    if (c) {
-      if (
-        (c.kind === "relic" && r.relics.length === 5) ||
-        (c.kind === "supply" && r.supplies.length === 2)
-      ) {
-        state.replaceReward = c;
-        state.modal = "replace-reward";
-      } else chooseReward(r, c);
-    }
+  if (action === "buy-offer" && state.screen === "shop") {
+    const result = buyOffer(state.run, Number(target.dataset.index));
+    state.notice = result.ok ? "" : result.reason;
   }
-  if (action === "replace-reward") {
-    chooseReward(state.run, state.replaceReward, target.dataset.id);
-    state.replaceReward = null;
-    state.modal = "victory";
+  if (action === "sell-item" && state.screen === "shop") {
+    sellItem(state.run, target.dataset.kind, target.dataset.id);
+    state.notice = "";
   }
-  if (action === "cancel-reward") {
-    state.replaceReward = null;
-    state.modal = "victory";
-  }
-  if (action === "skip-reward") state.run.rewardChosen = true;
-  if (action === "next-stage" && state.run.rewardChosen) {
+  if (action === "leave-shop" && state.screen === "shop") {
     const next = advanceRun(state.run);
     state.screen = "route";
+    state.resumeScreen = "route";
     state.modal = next === "final" ? "final" : null;
+    state.notice = "";
+  }
+  if (action === "use-upgrade" && state.screen === "shop") {
+    state.upgradeSupply = state.inspectUid;
+    state.modal = "upgrade-book";
+  }
+  if (action === "upgrade-copy" && state.modal === "upgrade-book") {
+    const r = state.run,
+      supply = r.supplies.find((s) => s.uid === state.upgradeSupply),
+      item = supplyById(supply?.id),
+      card = r.cards.find((c) => c.id === Number(target.dataset.id));
+    if (card && item && canUpgrade(card, item, r.cards)) {
+      r.cards = r.cards.map((c) =>
+        c.id === card.id ? upgradeCard(c, item, r.cards) : c,
+      );
+      r.supplies = r.supplies.filter((s) => s.uid !== supply.uid);
+      r.stats.suppliesUsed++;
+      state.upgradeSupply = null;
+      state.modal = null;
+    }
   }
   if (action === "endless") {
     enterEndless(state.run);

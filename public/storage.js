@@ -1,6 +1,9 @@
 import { heroById } from "./party.js";
 import { relicById, supplyById } from "./content.js";
 import { HAND_LIMIT, planAction } from "./combat.js";
+import { localMultiplier } from "./relics.js";
+import { openShop } from "./shop.js";
+import { freshStats } from "./campaign.js";
 
 const SAVE = "dndrun-new-combat-v1",
   SCORES = "dndrun-new-scores-v1";
@@ -19,7 +22,13 @@ const validRelics = (relics) =>
 const validSupplies = (supplies) =>
   Array.isArray(supplies) &&
   supplies.length <= 2 &&
-  supplies.every((s) => s && typeof s.uid === "string" && supplyById(s.id)) &&
+  supplies.every(
+    (s) =>
+      s &&
+      typeof s.uid === "string" &&
+      supplyById(s.id) &&
+      (s.paid === undefined || nonnegative(s.paid)),
+  ) &&
   distinct(supplies.map((s) => s.uid));
 const validUnit = (unit) =>
   unit &&
@@ -40,6 +49,73 @@ const validCard = (card, party) =>
   Number.isFinite(card.multiplier) &&
   card.multiplier >= 1 &&
   (card.amount === undefined || nonnegative(card.amount));
+function validShop(shop, run) {
+  if (
+    !shop ||
+    shop.chapter !== run.chapter ||
+    shop.stage !== run.stage ||
+    !Array.isArray(shop.offers) ||
+    shop.offers.length !== 4
+  )
+    return false;
+  if (
+    !shop.offers.every(
+      (o) =>
+        o &&
+        typeof o.sold === "boolean" &&
+        (o.kind === "relic"
+          ? relicById(o.id)
+          : o.kind === "supply" && supplyById(o.id)),
+    )
+  )
+    return false;
+  return (
+    shop.offers.filter((o) => o.kind === "relic").length === 3 &&
+    shop.offers.filter((o) => o.kind === "supply").length === 1 &&
+    distinct(shop.offers.map((o) => o.kind + ":" + o.id))
+  );
+}
+function migrateSession(s) {
+  const r = s.run;
+  r.stats ||= {
+    ...freshStats(),
+    wins: r.completed,
+    bossWins: Math.floor(r.completed / 3),
+  };
+  r.relicState ||= {};
+  for (const id of r.relics)
+    r.relicState[id] ||= { paid: 0, baseline: { ...r.stats } };
+  r.supplies = r.supplies.map((item) => ({ paid: 0, ...item }));
+  if (!r.rulesVersion) {
+    r.cards = r.cards.map((c) => ({ ...c, multiplier: localMultiplier(c) }));
+    if (r.battle)
+      for (const pile of ["hand", "draw", "spent"])
+        if (Array.isArray(r.battle.deck?.[pile]))
+          r.battle.deck[pile] = r.battle.deck[pile].map((c) => ({
+            ...c,
+            multiplier: localMultiplier(c),
+          }));
+  }
+  r.rulesVersion = 2;
+  if (r.battle) {
+    const b = r.battle;
+    b.stats ||= { ...r.stats };
+    b.relicState ||= structuredClone(r.relicState);
+    b.metrics ||= {};
+    b.usedHeroes ||= [];
+    b.gildedUsed ||= [];
+    b.coinEarned ||= 0;
+    b.coins ??= r.coins;
+  }
+  if (s.modal === "victory" && r.rewardClaimed) {
+    r.battle = null;
+    openShop(r);
+    s.screen = "shop";
+    s.modal = null;
+  }
+  s.version = 2;
+  return s;
+}
 function validBattle(battle, run) {
   if (
     !battle ||
@@ -109,17 +185,17 @@ function validBattle(battle, run) {
 }
 export function saveSession(session) {
   try {
-    localStorage.setItem(SAVE, JSON.stringify({ version: 1, ...session }));
+    localStorage.setItem(SAVE, JSON.stringify({ version: 2, ...session }));
   } catch {
     /* Storage may be disabled; the current session stays playable. */
   }
 }
 export function loadSession() {
   try {
-    const s = JSON.parse(localStorage.getItem(SAVE)),
+    let s = JSON.parse(localStorage.getItem(SAVE)),
       r = s?.run;
     if (
-      s?.version !== 1 ||
+      ![1, 2].includes(s?.version) ||
       !r ||
       r.cards?.length !== 27 ||
       !Array.isArray(r.heroes) ||
@@ -174,19 +250,22 @@ export function loadSession() {
       )
     )
       return null;
+    s = migrateSession(s);
     if (
-      !["route", "battle"].includes(s.screen) ||
+      !Object.values(r.stats).every(nonnegative) ||
+      !r.relicState ||
+      r.relics.some((id) => !nonnegative(r.relicState[id]?.paid))
+    )
+      return null;
+    if (
+      !["route", "battle", "shop"].includes(s.screen) ||
       (s.screen === "battle" && !validBattle(r.battle, r))
     )
       return null;
-    if (s.modal !== null && !["victory", "final"].includes(s.modal))
+    if (s.screen === "shop" && (!r.rewardClaimed || !validShop(r.shop, r)))
       return null;
-    if (
-      (s.modal === "victory" &&
-        (r.battle?.status !== "victory" || !r.rewardClaimed)) ||
-      (s.modal === "final" && s.screen !== "route")
-    )
-      return null;
+    if (s.modal !== null && !["final"].includes(s.modal)) return null;
+    if (s.modal === "final" && s.screen !== "route") return null;
     return s;
   } catch {
     return null;

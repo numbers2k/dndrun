@@ -1,10 +1,9 @@
 import { pathToFileURL } from "node:url";
+import { buyOffer, priceFor } from "../public/shop.js";
 import { heroes, defaultParty } from "../public/party.js";
 import {
   createRun,
   claimVictory,
-  rewardChoices,
-  chooseReward,
   advanceRun,
   enterEndless,
   rest,
@@ -113,6 +112,7 @@ export function autoRun(
         encounter: r.encounters[r.stage],
         relics: r.relics,
         supplies: r.supplies,
+        context: r,
         seed: r.seed + r.completed * 919 + r.chapter * 31 + r.stage,
       }),
       policy,
@@ -132,10 +132,14 @@ export function autoRun(
         score: r.score,
       };
     claimVictory(r, b);
-    const choices = rewardChoices(r),
-      relic = choices.find((c) => c.kind === "relic" && r.relics.length < 5),
-      upgrade = choices.find((c) => c.kind === "upgrade");
-    chooseReward(r, relic || upgrade);
+    for (const [index, offer] of r.shop.offers.entries()) {
+      const price = priceFor(r, offer.kind, offer.id);
+      if (
+        price <= r.coins &&
+        (offer.kind === "relic" ? r.relics.length < 5 : r.supplies.length < 2)
+      )
+        buyOffer(r, index);
+    }
     const next = advanceRun(r);
     if (next === "final") enterEndless(r);
   }

@@ -1,14 +1,23 @@
-import {
-  chapterEncounters,
-  relics,
-  supplies,
-  seededRandom,
-} from "./content.js";
+import { chapterEncounters } from "./content.js";
 import { heroById, heroHealth, buildDeck } from "./party.js";
+import { relicBonuses } from "./relics.js";
+import { openShop } from "./shop.js";
 
 export const MAIN_CHAPTERS = 3;
+export const freshStats = () => ({
+  wins: 0,
+  bossWins: 0,
+  attacksPlayed: 0,
+  cost2Played: 0,
+  suppliesUsed: 0,
+  sequenceTurns: 0,
+  repeatTurns: 0,
+  skips: 0,
+  sales: 0,
+});
 export function createRun(party, difficulty = 0, seed = Date.now() >>> 0) {
   return {
+    rulesVersion: 2,
     seed,
     chapter: 1,
     stage: 0,
@@ -16,7 +25,9 @@ export function createRun(party, difficulty = 0, seed = Date.now() >>> 0) {
     score: 0,
     coins: 4,
     relics: [],
-    supplies: [{ uid: "starter", id: "tonic" }],
+    relicState: {},
+    stats: freshStats(),
+    supplies: [{ uid: "starter", id: "tonic", paid: 0 }],
     supplySerial: 0,
     party: [...party],
     heroes: party.map((id) => ({
@@ -28,6 +39,7 @@ export function createRun(party, difficulty = 0, seed = Date.now() >>> 0) {
     })),
     cards: buildDeck(party),
     battle: null,
+    shop: null,
     encounters: chapterEncounters(1, seed, difficulty),
     completed: 0,
     finished: false,
@@ -35,50 +47,45 @@ export function createRun(party, difficulty = 0, seed = Date.now() >>> 0) {
     rewardClaimed: false,
   };
 }
-export function addSupply(run, id) {
+export function addSupply(run, id, paid = 0) {
   if (run.supplies.length >= 2) return false;
-  run.supplies.push({ uid: `supply-${++run.supplySerial}`, id });
+  run.supplies.push({ uid: "supply-" + ++run.supplySerial, id, paid });
   return true;
 }
-export function rewardChoices(run) {
-  const random = seededRandom(run.seed + run.chapter * 101 + run.stage * 17);
-  const available = relics.filter((r) => !run.relics.includes(r.id));
-  const relic = available[Math.floor(random() * available.length)];
-  const hero = run.party[Math.floor(random() * run.party.length)];
-  const attack =
-    run.cards.filter((c) => c.hero === hero && c.effect === "Урон")[0] ||
-    run.cards.find((c) => c.hero === hero);
-  const item = supplies[Math.floor(random() * supplies.length)];
-  return [
-    relic && {
-      kind: "relic",
-      id: relic.id,
-      name: relic.name,
-      description: relic.description,
-      icon: relic.icon,
-    },
-    {
-      kind: "upgrade",
-      hero,
-      name: `${attack.name} +2`,
-      spell: attack.name,
-      description: "Все копии: эффект +2, множитель +0,25.",
-      icon: attack.icon,
-    },
-    {
-      kind: "supply",
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      icon: item.icon,
-    },
-  ].filter(Boolean);
+export function syncBattleProgress(run, b) {
+  run.heroes = b.heroes;
+  run.supplies = b.supplies;
+  const cards = new Map(
+    [...b.deck.hand, ...b.deck.draw, ...b.deck.spent].map((c) => [c.id, c]),
+  );
+  run.cards = run.cards.map((c) => cards.get(c.id) || c);
 }
 export function claimVictory(run, battle) {
   if (run.rewardClaimed || battle.status !== "victory") return false;
-  run.battle = battle;
-  run.heroes = battle.heroes.map((h) => ({
+  syncBattleProgress(run, battle);
+  const bonus = relicBonuses(battle);
+  run.coins +=
+    run.encounters[run.stage].reward +
+    Math.min(8, Math.floor(bonus.income)) +
+    (battle.coinEarned || 0);
+  run.score += Math.round(
+    (100 * run.chapter +
+      Math.max(0, 12 - battle.turn) * 20 +
+      run.heroes.reduce((n, h) => n + h.hp, 0)) *
+      (1 + run.difficulty * 0.25),
+  );
+  for (const [key, value] of Object.entries(battle.metrics || {}))
+    if (key in run.stats) run.stats[key] += value;
+  run.stats.wins++;
+  if (run.stage === 2) run.stats.bossWins++;
+  run.completed++;
+  run.rewardClaimed = true;
+  run.heroes = run.heroes.map((h) => ({
     ...h,
+    hp:
+      h.hp > 0
+        ? Math.min(h.maxHp, h.hp + 4 + Math.min(6, Math.floor(bonus.afterHeal)))
+        : 8,
     guard: 0,
     poison: 0,
     vulnerable: 0,
@@ -87,61 +94,24 @@ export function claimVictory(run, battle) {
     strength: 0,
     strengthTurns: 0,
   }));
-  run.supplies = battle.supplies;
-  run.coins += run.encounters[run.stage].reward;
-  run.score += Math.round(
-    (100 * run.chapter +
-      Math.max(0, 12 - battle.turn) * 20 +
-      run.heroes.reduce((n, h) => n + h.hp, 0)) *
-      (1 + run.difficulty * 0.25),
+  run.cards = run.cards.map((c) =>
+    c.growing > 0
+      ? {
+          ...c,
+          amount: Math.min((c.originalAmount ?? c.amount) + 8, c.amount + 1),
+          originalAmount: c.originalAmount ?? c.amount,
+          growing: c.growing - 1,
+        }
+      : c,
   );
-  run.completed++;
-  run.rewardClaimed = true;
-  // A downed hero returns wounded between encounters; deaths still end an entire wiped squad.
-  for (const h of run.heroes) {
-    h.hp =
-      h.hp > 0
-        ? Math.min(h.maxHp, h.hp + 4 + (run.relics.includes("herb") ? 3 : 0))
-        : 8;
-  }
-  return true;
-}
-export function chooseReward(run, choice, replace = null) {
-  if (!run.rewardClaimed || run.rewardChosen) return false;
-  if (choice.kind === "relic") {
-    if (run.relics.includes(choice.id)) return false;
-    if (run.relics.length >= 5) {
-      if (!run.relics.includes(replace)) return false;
-      run.relics.splice(run.relics.indexOf(replace), 1);
-    }
-    run.relics.push(choice.id);
-  } else if (choice.kind === "upgrade") {
-    const improve = (c) =>
-      c.hero === choice.hero && c.name === choice.spell
-        ? {
-            ...c,
-            amount: (c.amount || 0) + 2,
-            multiplier: Math.round((c.multiplier + 0.25) * 100) / 100,
-          }
-        : c;
-    run.cards = run.cards.map(improve);
-    if (run.battle)
-      for (const pile of ["hand", "draw", "spent"])
-        run.battle.deck[pile] = run.battle.deck[pile].map(improve);
-  } else if (choice.kind === "supply") {
-    if (run.supplies.length >= 2) {
-      if (!run.supplies.some((s) => s.uid === replace)) return false;
-      run.supplies = run.supplies.filter((s) => s.uid !== replace);
-    }
-    addSupply(run, choice.id);
-  } else return false;
-  run.rewardChosen = true;
+  run.battle = null;
+  openShop(run);
   return true;
 }
 export function advanceRun(run) {
   run.battle = null;
+  run.shop = null;
   run.rewardClaimed = false;
-  run.rewardChosen = false;
   if (run.stage < 2) {
     run.stage++;
     return "route";
@@ -157,12 +127,17 @@ export function enterEndless(run) {
   run.chapter++;
   run.stage = 0;
   run.battle = null;
+  run.shop = null;
   run.rewardClaimed = false;
-  run.rewardChosen = false;
   run.encounters = chapterEncounters(run.chapter, run.seed, run.difficulty);
 }
 export function rest(run) {
-  if (run.coins < 3 || run.heroes.every((h) => h.hp === h.maxHp)) return false;
+  if (
+    run.battle?.status === "active" ||
+    run.coins < 3 ||
+    run.heroes.every((h) => h.hp === h.maxHp)
+  )
+    return false;
   run.coins -= 3;
   for (const h of run.heroes) h.hp = Math.min(h.maxHp, h.hp + 12);
   return true;

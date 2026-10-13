@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import {
   createRun,
   claimVictory,
-  chooseReward,
-  rewardChoices,
   advanceRun,
   enterEndless,
   rest,
@@ -21,6 +19,7 @@ import {
 } from "../public/combat.js";
 import { defaultParty, heroes, buildDeck } from "../public/party.js";
 import { chapterEncounters } from "../public/content.js";
+import { buyOffer, sellItem, priceFor } from "../public/shop.js";
 
 function fixture() {
   const r = createRun(defaultParty, 0, 123);
@@ -80,17 +79,17 @@ test("planning validates targets, budget, ownership and duplicate copies without
   assert.equal(remainingElixir(undoAction(two, 1)), 2);
   assert.equal(JSON.stringify(b), before);
 });
-test("additive multiplier applies once, preview agrees, killed enemies do not reply", () => {
+test("card-local multiplier applies once, preview agrees, killed enemies do not reply", () => {
   let b = giveCards(fixture(), [
     { effect: "Урон", amount: 10, multiplier: 2 },
     { effect: "Урон", amount: 10, multiplier: 2 },
   ]);
   b.enemies.forEach((e) => {
-    e.hp = e.maxHp = 30;
+    e.hp = e.maxHp = 20;
   });
   b = planAction(b, "card", 0, "enemy-0");
   b = planAction(b, "card", 1, "enemy-1");
-  assert.equal(turnMultiplier(b), 3);
+  assert.equal(turnMultiplier(b), 1);
   const preview = previewTurn(b),
     resolved = endTurn(b);
   assert.deepEqual(
@@ -197,10 +196,10 @@ test("relic bonuses are conditional; elixir bonus is bounded to one copy", () =>
   b.relics = ["moon", "oath", "rune", "ward"];
   b = planAction(b, "card", 0, "enemy-0");
   b = planAction(b, "card", 1, "warden");
-  assert.equal(turnMultiplier(b), 2);
+  assert.equal(turnMultiplier(b), 1.7);
   const preview = previewTurn(b);
-  assert.equal(preview.enemies[0].hp, b.enemies[0].hp - 14);
-  assert.equal(preview.heroes[0].guard, 10);
+  assert.equal(preview.enemies[0].hp, b.enemies[0].hp - 11);
+  assert.equal(preview.heroes[0].guard, 5);
   const r = createRun(defaultParty);
   const flask = createBattle({
     heroes: r.heroes,
@@ -225,7 +224,7 @@ test("wipe and full resource exhaustion end the fight; dead-owner cards leave fi
     [...next.deck.hand, ...next.deck.draw].every((c) => c.hero !== "warden"),
   );
 });
-test("rewards and score cannot be claimed twice, rest costs gold and upgrade changes all copies", () => {
+test("victory opens a priced shop once and rest still spends money", () => {
   const r = createRun(defaultParty, 0, 12),
     b = fixture();
   b.status = "victory";
@@ -236,22 +235,12 @@ test("rewards and score cannot be claimed twice, rest costs gold and upgrade cha
   assert.equal(claimVictory(r, b), false);
   assert.equal(r.score, score);
   assert.equal(r.coins, coins);
-  const upgrade = rewardChoices(r).find((c) => c.kind === "upgrade"),
-    before = r.cards.filter(
-      (c) => c.hero === upgrade.hero && c.name === upgrade.spell,
-    );
-  assert.ok(chooseReward(r, upgrade));
-  assert.equal(chooseReward(r, upgrade), false);
-  const after = r.cards.filter(
-    (c) => c.hero === upgrade.hero && c.name === upgrade.spell,
-  );
-  assert.ok(
-    after.every((c, i) => c.multiplier === before[i].multiplier + 0.25),
-  );
-  const gold = r.coins;
+  assert.equal(r.shop.offers.length, 4);
+  assert.equal(r.relics.length, 0);
   assert.ok(rest(r));
-  assert.equal(r.coins, gold - 3);
+  assert.equal(r.coins, coins - 3);
 });
+
 test("three chapters lead to finish-or-endless choice; endless progression is reproducible and grows", () => {
   const r = createRun(defaultParty, 0, 87);
   r.chapter = 3;
@@ -362,35 +351,33 @@ test("cleansing and strength supplies have real effects, armour and area cards s
     ),
   );
 });
-test("full inventories require explicit replacement, and upgrades remain current in battle piles", () => {
+test("full inventories require sale before purchase and sold offers cannot be bought again", () => {
   const r = createRun(defaultParty);
-  const b = fixture();
-  b.status = "victory";
-  claimVictory(r, b);
+  r.coins = 100;
+  r.shop = {
+    offers: [
+      { kind: "relic", id: "venom", sold: false },
+      { kind: "supply", id: "oil", sold: false },
+    ],
+  };
   r.relics = ["rune", "ward", "herb", "moon", "oath"];
-  assert.equal(chooseReward(r, { kind: "relic", id: "venom" }), false);
-  assert.equal(r.relics.length, 5);
-  assert.ok(chooseReward(r, { kind: "relic", id: "venom" }, "ward"));
-  assert.equal(r.relics.length, 5);
-  assert.ok(!r.relics.includes("ward"));
-  r.rewardChosen = false;
+  r.relicState.ward = { paid: 4, baseline: {} };
+  assert.equal(buyOffer(r, 0).ok, false);
+  assert.ok(sellItem(r, "relic", "ward"));
+  assert.equal(r.coins, 102);
+  const price = priceFor(r, "relic", "venom");
+  assert.ok(buyOffer(r, 0).ok);
+  assert.equal(r.coins, 102 - price);
+  assert.equal(buyOffer(r, 0).ok, false);
   r.supplies = [
-    { uid: "one", id: "bomb" },
-    { uid: "two", id: "tonic" },
+    { uid: "one", id: "bomb", paid: 4 },
+    { uid: "two", id: "tonic", paid: 4 },
   ];
-  assert.equal(chooseReward(r, { kind: "supply", id: "oil" }), false);
-  assert.ok(chooseReward(r, { kind: "supply", id: "oil" }, "one"));
-  assert.equal(r.supplies.length, 2);
-  r.rewardChosen = false;
-  const c = r.cards.find((c) => c.effect === "Урон");
-  chooseReward(r, { kind: "upgrade", hero: c.hero, spell: c.name });
-  const updated = [
-    ...r.battle.deck.hand,
-    ...r.battle.deck.draw,
-    ...r.battle.deck.spent,
-  ].filter((x) => x.hero === c.hero && x.name === c.name);
-  assert.ok(updated.every((x) => x.amount === c.amount + 2));
+  assert.equal(buyOffer(r, 1).ok, false);
+  assert.ok(sellItem(r, "supply", "one"));
+  assert.ok(buyOffer(r, 1).ok);
 });
+
 test("exhausted cards do not forfeit a victory still achievable through ticking poison", () => {
   let b = giveCards(fixture(), [{ effect: "Яд", amount: 4 }]);
   b.supplies = [];
