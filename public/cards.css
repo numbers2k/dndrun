@@ -1,0 +1,212 @@
+/* Shared playing-card proportions; screens may choose a different scale. */
+:root {
+  --card-ratio: 110 / 156;
+  --card-width: 110px;
+  --card-height: calc(var(--card-width) * 156 / 110);
+  --surface-radius: 8px;
+}
+.action-card,
+.hero-card {
+  --card-height: calc(var(--card-width) * 156 / 110);
+}
+.floating-card {
+  width: var(--card-width);
+}
+.floating-card .deck-art,
+.deck-stack .deck-art {
+  width: var(--card-width);
+  height: var(--card-height);
+}
+.deck-stack {
+  width: var(--card-width);
+}
+.action-card,
+.spell-fan .book-spell {
+  flex: 0 0 var(--card-width);
+  width: var(--card-width);
+  height: var(--card-height);
+  min-width: var(--card-width);
+  max-width: var(--card-width);
+  min-height: var(--card-height);
+  max-height: var(--card-height);
+  aspect-ratio: var(--card-ratio);
+  padding: 5px;
+  gap: 3px;
+  text-align: center;
+  border: 2px solid #b0a17d;
+  border-radius: 6px;
+  box-shadow: 1px 3px 0 #8c9275;
+}
+.action-card .card-illustration {
+  margin: 0;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.action-card .card-title {
+  margin: 0;
+  font-size: 11px;
+  min-height: 25px;
+  flex-shrink: 0;
+  line-height: 1.12;
+}
+.action-card .card-effect {
+  padding: 0;
+  min-height: 0;
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1.1;
+}
+.card-effect strong {
+  font-weight: 700;
+}
+.card-multiplier {
+  font-size: 9px;
+  font-weight: 500;
+  color: #805d38;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+.card-multiplier strong {
+  font-weight: 700;
+}
+.card-detail {
+  font-size: 8px;
+  line-height: 1.1;
+  color: #50604b;
+  flex-shrink: 0;
+}
+.action-card .card-bottom-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 3px;
+  margin: 1px 0 0;
+  padding: 3px 0 0;
+  font-size: 10px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+.card-energy {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #6b4f2e;
+}
+.action-card .card-energy .symbol {
+  width: 11px;
+  height: 13px;
+}
+.card-energy strong {
+  font-size: 11px;
+  font-weight: 700;
+}
+.card-owner {
+  font-weight: 600;
+  color: #3e503c;
+}
+.hand-cards {
+  width: 100%;
+  justify-content: center;
+}
+.hand-cards .action-card {
+  margin-left: clamp(-29px, calc((100vw - 1366px) * 0.08 - 11px), -11px);
+}
+.hand-cards .action-card:first-child {
+  margin-left: 0;
+}
+.action-card:hover,
+.action-card:focus-visible,
+.action-card.selected {
+  z-index: 20;
+  transform: translateY(-5px) scale(1.08);
+}
+.spell-fan {
+  --fan-card-width: var(--card-width);
+}
+.spell-fan .book-spell {
+  top: 0;
+  bottom: auto;
+  z-index: calc(var(--fan-layer) + 1 + var(--card-index));
+}
+.book-fans {
+  flex: 1;
+  min-height: 280px;
+  grid-template-rows: repeat(2, minmax(54px, 1fr)) var(--card-height);
+  gap: 5px;
+  padding: 6px 5px 8px;
+  isolation: isolate;
+}
+.current-page {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.hero-card,
+.book-page .hero-card {
+  width: var(--card-width);
+  min-width: var(--card-width);
+  max-width: var(--card-width);
+  height: var(--card-height);
+  min-height: var(--card-height);
+  max-height: var(--card-height);
+  aspect-ratio: var(--card-ratio);
+  flex-shrink: 0;
+  padding: 5px 5px 8px;
+}
+.hero-card .hero-card-art,
+.book-page .hero-card-art {
+  height: 103px;
+  flex-shrink: 0;
+}
+.hero-card strong,
+.book-page .hero-card strong {
+  font-size: 15px;
+  margin-top: 5px;
+}
+.hero-card small,
+.book-page .hero-card small {
+  font-size: 10px;
+}
+.setup-party-cards {
+  justify-items: center;
+  max-width: 380px;
+}
+.empty-slot,
+.expedition-status .empty-slot {
+  --slot-width: 56px;
+  flex: 0 0 var(--slot-width);
+  width: var(--slot-width);
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  aspect-ratio: var(--card-ratio);
+}
+.empty-slot-row {
+  align-items: flex-start;
+}
+.relic-card {
+  width: 160px;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: var(--card-ratio);
+  padding: 14px 10px;
+}
+.collection-grid {
+  justify-items: center;
+}
+.relic-card > .symbol {
+  width: 52px;
+  height: 52px;
+}
+.relic-card h3 {
+  font-size: 14px;
+}
+.drag-ghost {
+  --card-width: 110px;
+}
+@media (max-height: 700px) {
+  .expedition-status .empty-slot {
+    --slot-width: 40px;
+  }
+}
